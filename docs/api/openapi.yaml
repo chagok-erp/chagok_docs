@@ -1,0 +1,2682 @@
+openapi: 3.1.0
+info:
+  title: Chagok ERP API
+  version: 0.1.0-draft
+  description: '차곡ERP 2주차 계약 초안 (미배포). A/B 검토 전. /api/v1 및 필드명은 제안. HTTP 상태는 확정 전이며 로그인 방식은 Spring Security 세션 쿠키+CSRF 권장.
+
+
+    업무 원칙: PR 헤더 일괄 승인, 1 PR → N PO, PO당 1 공급업체, GR 1회당 1 PO, 전체 트랜잭션. 실제 발주 전송/결제/승인 실행 AI Tool 없음.
+
+
+    JSON Decimal/금액은 문자열 표준 제안. 변경 시 Java/React 공동 계약에서 일괄 조정.'
+servers:
+- url: /api/v1
+  description: 제안 prefix, 팀 합의 전
+tags:
+- name: Auth
+- name: Masters
+- name: Warehouses
+- name: PR
+- name: Approval
+- name: PO
+- name: GR
+- name: Stock
+- name: Audit
+- name: AI
+- name: DocumentAI
+security:
+- sessionCookie: []
+paths:
+  /auth/login:
+    post:
+      tags:
+      - Auth
+      summary: 로그인. 서버 세션 쿠키 발급(계약 초안).
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      security: []
+      operationId: post_auth_login
+  /auth/logout:
+    post:
+      tags:
+      - Auth
+      summary: 로그아웃 및 서버 세션 무효화
+      responses:
+        '204':
+          description: 성공
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      operationId: post_auth_logout
+  /auth/me:
+    get:
+      tags:
+      - Auth
+      summary: 현재 인증 사용자
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      operationId: get_auth_me
+  /materials:
+    get:
+      tags:
+      - Masters
+      summary: 품목 목록
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Material'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      description: '허용 역할(제안): 로그인 역할
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_materials
+    post:
+      tags:
+      - Masters
+      summary: 품목 등록
+      responses:
+        '201':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Material'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaterialCreate'
+      description: '허용 역할(제안): PURCHASER, ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: post_materials
+  /materials/{id}:
+    patch:
+      tags:
+      - Masters
+      summary: 품목 명칭·규격·단가·안전재고 수정(기준단위 변경은 별도 검토)
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Material'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): PURCHASER, ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                specification:
+                  type: string
+                referenceUnitPrice:
+                  $ref: '#/components/schemas/MoneyKRW'
+                safetyStockQty:
+                  $ref: '#/components/schemas/DecimalQuantity'
+              minProperties: 1
+      operationId: patch_materials_by_id
+  /materials/{id}/active:
+    patch:
+      tags:
+      - Masters
+      summary: 품목 활성 상태 변경
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Material'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): PURCHASER, ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - active
+              properties:
+                active:
+                  type: boolean
+      operationId: patch_materials_by_id_active
+  /suppliers:
+    get:
+      tags:
+      - Masters
+      summary: 공급업체 목록
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Supplier'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      description: '허용 역할(제안): REQUESTER, APPROVER, PURCHASER, ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_suppliers
+    post:
+      tags:
+      - Masters
+      summary: 공급업체 등록
+      responses:
+        '201':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierCreate'
+      description: '허용 역할(제안): PURCHASER, ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: post_suppliers
+  /suppliers/{id}:
+    patch:
+      tags:
+      - Masters
+      summary: 공급업체 연락처 수정·비활성화
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): PURCHASER, ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                contactName:
+                  type: string
+                phone:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                active:
+                  type: boolean
+              minProperties: 1
+      operationId: patch_suppliers_by_id
+  /warehouses:
+    get:
+      tags:
+      - Warehouses
+      summary: 창고 목록
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Warehouse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      description: '허용 역할(제안): WAREHOUSE, PURCHASER, ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_warehouses
+    post:
+      tags:
+      - Warehouses
+      summary: 창고 등록
+      responses:
+        '201':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Warehouse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WarehouseCreate'
+      description: '허용 역할(제안): WAREHOUSE, ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: post_warehouses
+  /warehouses/{id}:
+    patch:
+      tags:
+      - Warehouses
+      summary: 창고 수정 및 활성상태 변경
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Warehouse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): WAREHOUSE, ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                active:
+                  type: boolean
+              minProperties: 1
+      operationId: patch_warehouses_by_id
+  /storage-locations:
+    get:
+      tags:
+      - Warehouses
+      summary: 저장위치 목록
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StorageLocation'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      description: '허용 역할(제안): WAREHOUSE, PURCHASER, ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_storage_locations
+    post:
+      tags:
+      - Warehouses
+      summary: 저장위치 등록
+      responses:
+        '201':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageLocation'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StorageLocationCreate'
+      description: '허용 역할(제안): WAREHOUSE, ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: post_storage_locations
+  /storage-locations/{id}:
+    patch:
+      tags:
+      - Warehouses
+      summary: 저장위치 수정·비활성화
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageLocation'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): WAREHOUSE, ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                active:
+                  type: boolean
+              minProperties: 1
+      operationId: patch_storage_locations_by_id
+  /purchase-requisitions:
+    get:
+      tags:
+      - PR
+      summary: 권한 범위 내 PR 목록
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PRDraft'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      description: '허용 역할(제안): REQUESTER/APPROVER/PURCHASER/ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_purchase_requisitions
+    post:
+      tags:
+      - PR
+      summary: PR DRAFT 생성(세 경로 공통)
+      responses:
+        '201':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PRDraft'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PRCreate'
+      description: '허용 역할(제안): REQUESTER/PURCHASER/ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: post_purchase_requisitions
+  /purchase-requisitions/{id}:
+    get:
+      tags:
+      - PR
+      summary: PR 상세/버전/발주잔량 조회
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PRDraft'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): 업무 범위 내 조회
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_purchase_requisitions_by_id
+    patch:
+      tags:
+      - PR
+      summary: 'DRAFT 변경: expectedVersion 및 requestKey 필수'
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PRDraft'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PRPatch'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): 작성자/허용 관리자
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: patch_purchase_requisitions_by_id
+  /purchase-requisitions/{id}/submit:
+    post:
+      tags:
+      - PR
+      summary: PR DRAFT 제출. neededByDate 필요 제안
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PRDraft'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): 작성자
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: post_purchase_requisitions_by_id_submit
+  /purchase-requisitions/{id}/rework:
+    post:
+      tags:
+      - PR
+      summary: 반려 PR 재작업 시작
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PRDraft'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): 작성자
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: post_purchase_requisitions_by_id_rework
+  /purchase-requisitions/{id}/approve:
+    post:
+      tags:
+      - Approval
+      summary: PR 헤더 전체 승인(자기 승인 금지)
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PRDraft'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisionRequest'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): APPROVER, ADMIN (본인 PR 불가)
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: post_purchase_requisitions_by_id_approve
+  /purchase-requisitions/{id}/reject:
+    post:
+      tags:
+      - Approval
+      summary: PR 헤더 전체 반려(사유 필수)
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PRDraft'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectRequest'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): APPROVER, ADMIN (본인 PR 불가)
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: post_purchase_requisitions_by_id_reject
+  /purchase-orders:
+    get:
+      tags:
+      - PO
+      summary: 분할 발주 목록
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PurchaseOrder'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      description: '허용 역할(제안): PURCHASER/APPROVER/WAREHOUSE/ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_purchase_orders
+    post:
+      tags:
+      - PO
+      summary: 승인 PR에서 PO 분할 생성
+      responses:
+        '201':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/POCreate'
+      description: '허용 역할(제안): PURCHASER/ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: post_purchase_orders
+  /purchase-orders/{id}:
+    get:
+      tags:
+      - PO
+      summary: PO 상세 및 품목별 잔여 입고량
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): PURCHASER/APPROVER/WAREHOUSE/ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_purchase_orders_by_id
+  /goods-receipts:
+    get:
+      tags:
+      - GR
+      summary: GR 이력 목록
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GoodsReceipt'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      description: '허용 역할(제안): WAREHOUSE/ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_goods_receipts
+    post:
+      tags:
+      - GR
+      summary: 1 PO 기준 입고 확정(원자적 트랜잭션)
+      responses:
+        '201':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoodsReceipt'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GRCreate'
+      description: '허용 역할(제안): WAREHOUSE/ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: post_goods_receipts
+  /goods-receipts/{id}:
+    get:
+      tags:
+      - GR
+      summary: GR 상세
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoodsReceipt'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): WAREHOUSE/ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_goods_receipts_by_id
+  /stock-balances:
+    get:
+      tags:
+      - Stock
+      summary: 현재고 검색
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockBalance'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      description: '허용 역할(제안): REQUESTER/PURCHASER/WAREHOUSE/ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_stock_balances
+  /stock-movements:
+    get:
+      tags:
+      - Stock
+      summary: 불변 원장 검색
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockMovement'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      description: '허용 역할(제안): REQUESTER/PURCHASER/WAREHOUSE/ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_stock_movements
+  /audit-logs:
+    get:
+      tags:
+      - Audit
+      summary: 업무 변경 이력(권한 범위 내)
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditLog'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      description: '허용 역할(제안): 도메인 업무에 따른 조회만 허용
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_audit_logs
+  /assistant/chat:
+    post:
+      tags:
+      - AI
+      summary: 대화형 조회/RAG/PR DRAFT 작업만 허용
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssistantChatResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '502':
+          description: AI 의존 서비스 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssistantChatRequest'
+      description: '허용 역할(제안): REQUESTER/PURCHASER/ADMIN
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: post_assistant_chat
+  /assistant/sessions/{id}:
+    get:
+      tags:
+      - AI
+      summary: 본인 AI 대화 세션 조회
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssistantChatResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): 본인 세션
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_assistant_sessions_by_id
+  /documents/analysis/{id}:
+    get:
+      tags:
+      - DocumentAI
+      summary: 본인 업로드 분석 결과 확인
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentAnalyzeResult'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      description: '허용 역할(제안): 요청자 본인
+
+
+        실제 인가·상태·소유권은 서버에서 검증.'
+      operationId: get_documents_analysis_by_id
+  /documents/analyze:
+    post:
+      tags:
+      - DocumentAI
+      summary: Excel XLSX 또는 텍스트 PDF 업로드 및 후보 품목 분석
+      description: 스캔 PDF OCR, CSV, XLS 등은 P0 제외. 사용자 검토 후 별도 PR 생성 API 호출. 실제 파싱은 비동기 전환 가능하나 P0는 PoC에 따른다.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 분석 응답 또는 작업 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentAnalyzeResult'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '413':
+          description: 첨부파일 용량 제한
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '415':
+          description: 지원하지 않는 파일 유형
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '502':
+          description: AI 의존 서비스 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      operationId: post_documents_analyze
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+      description: 예시 세션 쿠키명. 배포 시 Secure/HttpOnly/SameSite 및 CSRF 정책 구성 필요. 로그인 엔드포인트는 예외.
+  schemas:
+    Id:
+      type: string
+      format: uuid
+    DecimalQuantity:
+      type: string
+      description: Decimal 문자열. Java BigDecimal/PostgreSQL NUMERIC(18,3) 제안. JSON 부동소수 오차 방지.
+      pattern: ^\d+(?:\.\d{1,3})?$
+      example: '60.000'
+    MoneyKRW:
+      type: string
+      description: KRW 정수 금액(BigDecimal 문자열).
+      pattern: ^\d+$
+      example: '150000'
+    User:
+      type: object
+      required:
+      - id
+      - displayName
+      - roles
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        displayName:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - REQUESTER
+            - APPROVER
+            - PURCHASER
+            - WAREHOUSE
+            - ADMIN
+    LoginRequest:
+      type: object
+      required:
+      - email
+      - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    Material:
+      type: object
+      required:
+      - id
+      - materialCode
+      - name
+      - baseUnit
+      - active
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        materialCode:
+          type: string
+        name:
+          type: string
+        specification:
+          type: string
+        baseUnit:
+          type: string
+          enum:
+          - EA
+          - SET
+          - KG
+          - M
+          - L
+        active:
+          type: boolean
+        referenceUnitPrice:
+          $ref: '#/components/schemas/MoneyKRW'
+        safetyStockQty:
+          $ref: '#/components/schemas/DecimalQuantity'
+    MaterialCreate:
+      type: object
+      required:
+      - materialCode
+      - name
+      - baseUnit
+      properties:
+        materialCode:
+          type: string
+        name:
+          type: string
+        specification:
+          type: string
+        baseUnit:
+          type: string
+          enum:
+          - EA
+          - SET
+          - KG
+          - M
+          - L
+        referenceUnitPrice:
+          $ref: '#/components/schemas/MoneyKRW'
+        safetyStockQty:
+          $ref: '#/components/schemas/DecimalQuantity'
+    Supplier:
+      type: object
+      required:
+      - id
+      - supplierCode
+      - name
+      - phone
+      - active
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        supplierCode:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+          description: 선택 제안
+        contactName:
+          type: string
+        active:
+          type: boolean
+    SupplierCreate:
+      type: object
+      required:
+      - supplierCode
+      - name
+      - phone
+      properties:
+        supplierCode:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+        contactName:
+          type: string
+    Warehouse:
+      type: object
+      required:
+      - id
+      - warehouseCode
+      - name
+      - active
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        warehouseCode:
+          type: string
+        name:
+          type: string
+        active:
+          type: boolean
+    WarehouseCreate:
+      type: object
+      required:
+      - warehouseCode
+      - name
+      properties:
+        warehouseCode:
+          type: string
+        name:
+          type: string
+    StorageLocation:
+      type: object
+      required:
+      - id
+      - warehouseId
+      - locationCode
+      - name
+      - active
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        warehouseId:
+          $ref: '#/components/schemas/Id'
+        locationCode:
+          type: string
+        name:
+          type: string
+        active:
+          type: boolean
+    StorageLocationCreate:
+      type: object
+      required:
+      - warehouseId
+      - locationCode
+      - name
+      properties:
+        warehouseId:
+          $ref: '#/components/schemas/Id'
+        locationCode:
+          type: string
+        name:
+          type: string
+    PRItemInput:
+      type: object
+      required:
+      - materialId
+      - quantity
+      - unit
+      properties:
+        materialId:
+          $ref: '#/components/schemas/Id'
+        quantity:
+          $ref: '#/components/schemas/DecimalQuantity'
+        unit:
+          type: string
+          description: Material 기준단위와 일치해야 함
+    PRItem:
+      type: object
+      required:
+      - itemId
+      - materialId
+      - quantity
+      - unit
+      - displayOrder
+      - remainingToOrder
+      properties:
+        itemId:
+          $ref: '#/components/schemas/Id'
+        materialId:
+          $ref: '#/components/schemas/Id'
+        quantity:
+          $ref: '#/components/schemas/DecimalQuantity'
+        unit:
+          type: string
+        displayOrder:
+          type: integer
+        remainingToOrder:
+          $ref: '#/components/schemas/DecimalQuantity'
+    PRCreate:
+      type: object
+      required:
+      - requestKey
+      - title
+      - source
+      - items
+      properties:
+        requestKey:
+          type: string
+          minLength: 8
+        title:
+          type: string
+          minLength: 1
+        neededByDate:
+          type: string
+          format: date
+          description: DRAFT에서는 선택; 제출 시 필수 제안
+        source:
+          type: string
+          enum:
+          - UI
+          - AGENT
+          - DOCUMENT_AI
+        sourceReferenceId:
+          type: string
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PRItemInput'
+    PRDraft:
+      type: object
+      required:
+      - draftId
+      - status
+      - version
+      - items
+      properties:
+        draftId:
+          $ref: '#/components/schemas/Id'
+        prNumber:
+          type: string
+        title:
+          type: string
+        neededByDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - SUBMITTED
+          - APPROVED
+          - REJECTED
+        version:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PRItem'
+    PRPatchOperation:
+      type: object
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - UPDATE_QUANTITY
+          - REMOVE_ITEM
+          - ADD_ITEM
+          - UPDATE_TITLE
+          - UPDATE_NEEDED_BY_DATE
+        itemId:
+          $ref: '#/components/schemas/Id'
+        materialId:
+          $ref: '#/components/schemas/Id'
+        quantity:
+          $ref: '#/components/schemas/DecimalQuantity'
+        unit:
+          type: string
+        title:
+          type: string
+        neededByDate:
+          type:
+          - string
+          - 'null'
+          format: date
+      description: 연산 유형별 요구 필드는 서버에서 검증. AI는 itemId를 표시 행 번호와 혼동하지 않아야 함.
+    PRPatch:
+      type: object
+      required:
+      - requestKey
+      - expectedVersion
+      - operations
+      properties:
+        requestKey:
+          type: string
+          minLength: 8
+        expectedVersion:
+          type: integer
+          minimum: 1
+        operations:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PRPatchOperation'
+    DecisionRequest:
+      type: object
+      properties:
+        comment:
+          type: string
+    RejectRequest:
+      type: object
+      required:
+      - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+    POItemCreate:
+      type: object
+      required:
+      - requisitionItemId
+      - quantity
+      - unitPrice
+      properties:
+        requisitionItemId:
+          $ref: '#/components/schemas/Id'
+        quantity:
+          $ref: '#/components/schemas/DecimalQuantity'
+        unitPrice:
+          $ref: '#/components/schemas/MoneyKRW'
+    POCreate:
+      type: object
+      required:
+      - requestKey
+      - prId
+      - supplierId
+      - items
+      properties:
+        requestKey:
+          type: string
+          minLength: 8
+        prId:
+          $ref: '#/components/schemas/Id'
+        supplierId:
+          $ref: '#/components/schemas/Id'
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/POItemCreate'
+    POItem:
+      type: object
+      required:
+      - id
+      - requisitionItemId
+      - orderedQty
+      - receivedQty
+      - remainingToReceive
+      - unit
+      - unitPrice
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        requisitionItemId:
+          $ref: '#/components/schemas/Id'
+        orderedQty:
+          $ref: '#/components/schemas/DecimalQuantity'
+        receivedQty:
+          $ref: '#/components/schemas/DecimalQuantity'
+        remainingToReceive:
+          $ref: '#/components/schemas/DecimalQuantity'
+        unit:
+          type: string
+        unitPrice:
+          $ref: '#/components/schemas/MoneyKRW'
+    PurchaseOrder:
+      type: object
+      required:
+      - id
+      - poNumber
+      - prId
+      - supplierId
+      - status
+      - items
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        poNumber:
+          type: string
+        prId:
+          $ref: '#/components/schemas/Id'
+        supplierId:
+          $ref: '#/components/schemas/Id'
+        status:
+          type: string
+          enum:
+          - OPEN
+          - PARTIALLY_RECEIVED
+          - RECEIVED
+        totalAmount:
+          $ref: '#/components/schemas/MoneyKRW'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/POItem'
+    GRItemInput:
+      type: object
+      required:
+      - purchaseOrderItemId
+      - receivedQty
+      properties:
+        purchaseOrderItemId:
+          $ref: '#/components/schemas/Id'
+        receivedQty:
+          $ref: '#/components/schemas/DecimalQuantity'
+    GRCreate:
+      type: object
+      required:
+      - requestKey
+      - purchaseOrderId
+      - warehouseId
+      - storageLocationId
+      - items
+      properties:
+        requestKey:
+          type: string
+          minLength: 8
+        purchaseOrderId:
+          $ref: '#/components/schemas/Id'
+        warehouseId:
+          $ref: '#/components/schemas/Id'
+        storageLocationId:
+          $ref: '#/components/schemas/Id'
+        note:
+          type: string
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/GRItemInput'
+    GoodsReceipt:
+      type: object
+      required:
+      - id
+      - grNumber
+      - purchaseOrderId
+      - status
+      - items
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        grNumber:
+          type: string
+        purchaseOrderId:
+          $ref: '#/components/schemas/Id'
+        status:
+          type: string
+          enum:
+          - POSTED
+        postedAt:
+          type: string
+          format: date-time
+        poStatus:
+          type: string
+          enum:
+          - OPEN
+          - PARTIALLY_RECEIVED
+          - RECEIVED
+        items:
+          type: array
+          items:
+            type: object
+            required:
+            - purchaseOrderItemId
+            - receivedQty
+            properties:
+              purchaseOrderItemId:
+                $ref: '#/components/schemas/Id'
+              receivedQty:
+                $ref: '#/components/schemas/DecimalQuantity'
+    StockBalance:
+      type: object
+      required:
+      - materialId
+      - warehouseId
+      - storageLocationId
+      - onHandQty
+      properties:
+        materialId:
+          $ref: '#/components/schemas/Id'
+        warehouseId:
+          $ref: '#/components/schemas/Id'
+        storageLocationId:
+          $ref: '#/components/schemas/Id'
+        onHandQty:
+          $ref: '#/components/schemas/DecimalQuantity'
+    StockMovement:
+      type: object
+      required:
+      - id
+      - materialId
+      - storageLocationId
+      - movementType
+      - quantityDelta
+      - occurredAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        materialId:
+          $ref: '#/components/schemas/Id'
+        storageLocationId:
+          $ref: '#/components/schemas/Id'
+        movementType:
+          type: string
+          enum:
+          - OPENING
+          - GR_IN
+        quantityDelta:
+          $ref: '#/components/schemas/DecimalQuantity'
+        referenceCode:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+    AssistantChatRequest:
+      type: object
+      required:
+      - message
+      properties:
+        conversationId:
+          $ref: '#/components/schemas/Id'
+        message:
+          type: string
+          minLength: 1
+    AssistantChatResponse:
+      type: object
+      required:
+      - reply
+      - requiresClarification
+      properties:
+        conversationId:
+          $ref: '#/components/schemas/Id'
+        reply:
+          type: string
+        requiresClarification:
+          type: boolean
+        draftId:
+          $ref: '#/components/schemas/Id'
+        citations:
+          type: array
+          items:
+            type: object
+            properties:
+              policyVersion:
+                type: string
+              clauseId:
+                type: string
+              effectiveDate:
+                type: string
+                format: date
+              sourceName:
+                type: string
+    DocumentAnalyzeResult:
+      type: object
+      required:
+      - jobId
+      - rows
+      properties:
+        jobId:
+          $ref: '#/components/schemas/Id'
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              rowNo:
+                type: integer
+              rawName:
+                type: string
+              rawQty:
+                type: string
+              matchMethod:
+                type: string
+                enum:
+                - EXACT
+                - RULE
+                - BM25
+                - LLM
+                - UNMATCHED
+              candidates:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    materialId:
+                      $ref: '#/components/schemas/Id'
+                    displayName:
+                      type: string
+                    rank:
+                      type: integer
+              reviewStatus:
+                type: string
+                enum:
+                - READY
+                - NEEDS_REVIEW
+                - ERROR
+    AuditLog:
+      type: object
+      required:
+      - id
+      - domain
+      - action
+      - occurredAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        domain:
+          type: string
+        action:
+          type: string
+        resourceId:
+          $ref: '#/components/schemas/Id'
+        occurredAt:
+          type: string
+          format: date-time
+    ApiError:
+      type: object
+      required:
+      - code
+      - message
+      - traceId
+      properties:
+        code:
+          type: string
+          example: OVER_RECEIPT
+        message:
+          type: string
+        traceId:
+          type: string
+        fieldErrors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              reason:
+                type: string

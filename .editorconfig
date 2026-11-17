@@ -1,0 +1,22 @@
+# 공통 편집기 설정. 언어별 상세 코드 스타일은 프로젝트 규칙을 우선합니다.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+# Java 상세 규칙: WootecoStyle.xml (IntelliJ에서 별도 적용)
+[*.java]
+indent_size = 4
+max_line_length = 120
+
+# 웹 프론트엔드를 사용하는 경우의 기본 들여쓰기
+[*.{js,jsx,ts,tsx,json,css,scss,html,yml,yaml}]
+indent_size = 2
+
+# Markdown의 의도적인 두 칸 줄바꿈 보존
+[*.md]
+trim_trailing_whitespace = false

@@ -1,0 +1,122 @@
+{
+  ".editorconfig": {
+    "bytes": 579,
+    "sha256": "c33b6dc2a52a892b71d4075bd60baa2ba3e726084fce6a40141b6ca6fb00cea6"
+  },
+  ".github/pull_request_template.md": {
+    "bytes": 1224,
+    "sha256": "3ceb2ff89c18bbae5768e4efe83fc0b32546057b7a2d49c960d84ddd187dc19a"
+  },
+  "CONTRIBUTING.md": {
+    "bytes": 8135,
+    "sha256": "f3018fcb7eb47048b1fa1ded6f2cad5b964b5ff57424a42b3833c880007f7317"
+  },
+  "README.md": {
+    "bytes": 592,
+    "sha256": "5e805a69d366b0193912cdfcbdfcdee44bbb46672514192e630eefd123c22a83"
+  },
+  "WootecoStyle.xml": {
+    "bytes": 3149,
+    "sha256": "c06e4b8741d96e3af2b34babb80f97dfe18dd322b35a23fe6c70939d16a720f3"
+  },
+  "docs/README.md": {
+    "bytes": 12124,
+    "sha256": "b06ae97725279d70e1f3e1e5ef6369d413828a11ed98621cfa9bec075989600d"
+  },
+  "docs/api/09-PO-GR-CONTRACT.md": {
+    "bytes": 11995,
+    "sha256": "c55d08bcb4fabe61b9a15a2aae6275262299c526d91225fe77410d7813992fd5"
+  },
+  "docs/api/10-AI-PR-DRAFT-CONTRACT.md": {
+    "bytes": 11654,
+    "sha256": "6753d7674fb0ef4edd2daf9ee1de78a1f311c36eb9d63391cf8b121413557e99"
+  },
+  "docs/api/API-OWNERSHIP.md": {
+    "bytes": 23620,
+    "sha256": "08ad28fa06b40c6f77f949127355d2307b2d8f79d30280b10d5cf55f1f346d2d"
+  },
+  "docs/api/openapi.yaml": {
+    "bytes": 74392,
+    "sha256": "d142f1058966bd01211d3d6b677be344716ebe4795c2f1b401964cfd8a4d4b1e"
+  },
+  "docs/business/04-ERP-WORKFLOW.md": {
+    "bytes": 14342,
+    "sha256": "83fe26eaf914e28798e0aca56b99a3dde82e9bc20170b2a34d2a2401aeb6b842"
+  },
+  "docs/business/06-ERP-BUSINESS-RULES.md": {
+    "bytes": 16026,
+    "sha256": "8327840abe4a3ca12b18d50bbbbbbe4c91430fd994354b8a20a9e44c0a7c4371"
+  },
+  "docs/business/procurement-flow.mmd": {
+    "bytes": 1005,
+    "sha256": "dccf02fb4f4dcbe3c23a74e9aaf8930012a6a5406e308336d2af4ed93c78ff58"
+  },
+  "docs/database/DB-SPEC.md": {
+    "bytes": 15548,
+    "sha256": "77e064ff8949d88dc6b68be72bad5646782eea4a9f94ce4b4c2a84801db22175"
+  },
+  "docs/database/ERD-core.mmd": {
+    "bytes": 1035,
+    "sha256": "1612dd91018498cce67fbe8ea0e247ca237dbeb6a406a35abc3937465bc01d40"
+  },
+  "docs/design/07-SITEMAP-SCREEN-LIST.md": {
+    "bytes": 9463,
+    "sha256": "120aed03c409d3d798eb289b300b05d051b05635b1422ffcd4e5051cdd465ade"
+  },
+  "docs/design/08-USER-SCENARIOS.md": {
+    "bytes": 10751,
+    "sha256": "7bc037b4a143541e6d53fb0152b7fb4b6c50d8b9a2377541fe4dcaa9a27e7b43"
+  },
+  "docs/design/SCREEN-SPEC.md": {
+    "bytes": 87302,
+    "sha256": "187630242f645ffaf02488a0c9120d67c0f71044b9bf4937389c0f77dd64c684"
+  },
+  "docs/planning/01-PRD.md": {
+    "bytes": 14795,
+    "sha256": "be2614ff7c8b03b7c144211edd6ee6e5e394cec37189fcf53fc3b2a030d0c190"
+  },
+  "docs/planning/02-MVP-SCOPE.md": {
+    "bytes": 13746,
+    "sha256": "851e73b925536afca87e6e2834de614b785972f1172f854bbe8bd256ecce0101"
+  },
+  "docs/planning/03-ROLE-AGREEMENT.md": {
+    "bytes": 15622,
+    "sha256": "16fabf506b41e7bd20385696741c0bb9496e86caf796f5bf286a23fea713f6ac"
+  },
+  "docs/planning/FUNCTION-COVERAGE.md": {
+    "bytes": 5835,
+    "sha256": "052f28009a55c11a715e598d762263bf62fec63fba013e04a80b826547482ef2"
+  },
+  "docs/planning/FUNCTIONAL-SPEC.md": {
+    "bytes": 24727,
+    "sha256": "63d35728667fd8421059769d671aa14e6c4d94cd2d0e1f6810b0831438922ad7"
+  },
+  "docs/planning/차곡ERP_통합기획서_v3.3.md": {
+    "bytes": 22512,
+    "sha256": "a6cc76da339d9b1c50cebef5b60221a0492d7a4bb2f7bfed28f60e7abc25e9bc"
+  },
+  "docs/project-management/11-WEEK1-REVIEW-DECISIONS.md": {
+    "bytes": 11985,
+    "sha256": "06bbe98294b2e3dc3a883e5ea9e21bfdee8a2aa5662cb92de20b21b6a066517f"
+  },
+  "docs/project-management/GITHUB-SETUP.md": {
+    "bytes": 17560,
+    "sha256": "b0d64ef3f90712086b808388b065ee36c1ca1a6acf9fa911ac814741f1c3e31b"
+  },
+  "docs/project-management/OPEN-DECISIONS.md": {
+    "bytes": 3108,
+    "sha256": "00092b565fa6838bc80ba90b5a1d551df200ff19f2538245efaad6169df1eb76"
+  },
+  "docs/project-management/VALIDATION-RESULTS.md": {
+    "bytes": 882,
+    "sha256": "7c0b25a0915ab7202bd67a740ae4ca5450489a12b61ba7607c012c09e56d34bd"
+  },
+  "docs/references/05-SAP-REFERENCE.md": {
+    "bytes": 17150,
+    "sha256": "b4e2d2cda659898c3d7a10c9a2f3903ec53917a3d747ffc3a80241561168c925"
+  },
+  "docs/security/RBAC-MATRIX.md": {
+    "bytes": 6119,
+    "sha256": "fa502a721b7eb562764f709d16e3d3fd21f7fe64a49a4994f07ca5e19521b07f"
+  }
+}

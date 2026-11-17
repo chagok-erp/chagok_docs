@@ -1,0 +1,19 @@
+flowchart TD
+    START([UI / 통합 AI Assistant]) --> D["PR 초안 생성·수정 (DRAFT)"]
+    D --> VALIDATE{"제출 조건·소유권·버전 검증"}
+    VALIDATE -->|실패| D
+    VALIDATE -->|성공| S["PR 제출 (SUBMITTED)"]
+    S --> APPROVAL{"승인자 판단"}
+    APPROVAL -->|반려| R["REJECTED + 반려 사유·이력"]
+    R --> REWORK["요청자가 재작업 시작"]
+    REWORK --> D
+    APPROVAL -->|승인| A["APPROVED + 승인 이력"]
+    A --> PO["내부 PO 생성 (OPEN) · 실발주/결제 없음"]
+    PO --> GR["입고 요청: 품목·수량·창고 지정"]
+    GR --> CHECK{"잔량·권한·멱등성·동시성 검증"}
+    CHECK -->|실패| NO["오류 응답 · DB 변동 없음"]
+    CHECK -->|성공| TX["단일 트랜잭션: PO 누적량 + GR + 재고원장 + 현재고"]
+    TX --> NEXT{"모든 PO 품목 잔량이 0?"}
+    NEXT -->|아니오| PARTIAL["PARTIALLY_RECEIVED · 다음 입고 대기"]
+    PARTIAL --> GR
+    NEXT -->|예| DONE["RECEIVED · 입고 완료"]
