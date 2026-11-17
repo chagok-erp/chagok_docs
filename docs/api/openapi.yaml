@@ -2442,18 +2442,20 @@ components:
       required:
       - purchaseOrderItemId
       - receivedQty
+      - storageLocationId
       properties:
         purchaseOrderItemId:
           $ref: '#/components/schemas/Id'
         receivedQty:
           $ref: '#/components/schemas/DecimalQuantity'
+        storageLocationId:
+          $ref: '#/components/schemas/Id'
     GRCreate:
       type: object
       required:
       - requestKey
       - purchaseOrderId
       - warehouseId
-      - storageLocationId
       - items
       properties:
         requestKey:
@@ -2462,8 +2464,6 @@ components:
         purchaseOrderId:
           $ref: '#/components/schemas/Id'
         warehouseId:
-          $ref: '#/components/schemas/Id'
-        storageLocationId:
           $ref: '#/components/schemas/Id'
         note:
           type: string

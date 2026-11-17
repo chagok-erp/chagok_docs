@@ -153,3 +153,63 @@ SAP EDMX가 제공하는 것은 **API 모델·필드·관계**이고, 차곡ERP�
 3. `design/SCREEN-SPEC.md`를 실제 React 프로토타입과 비교해 UI 수정.
 4. `project-management/GITHUB-SETUP.md`를 따라 조직·저장소·보안·팀원 권한 설정(실제 관리자 계정 필요).
 5. 팀 확정 후 첫 수직 기능(Material/PR DRAFT 조회·저장) 구현 및 DB 마이그레이션/테스트, 계약서 갱신.
+
+
+# 차곡ERP — 2주 차 설계 및 GitHub 조직 협업 준비 패키지
+
+> 2026-11-17 / 설계 초안. **실제 GitHub 조직/저장소 생성, API 서버·DB 적용, React 실행, 팀 B 승인/서명은 아직 수행하지 않음.**
+
+## 파일 목록
+
+| 경로 | 용도 |
+|---|---|
+| `docs/DB-SPEC.md` | PostgreSQL 초기 데이터 사전, ERD, PK/FK/유니크, 트랜잭션/동시성 원칙, 테스트 기준 |
+| `diagrams/ERD-core.mmd` | Mermaid ERD 원문(렌더링 도구/Markdown에서 확인) |
+| `docs/openapi.yaml` | **OpenAPI 3.1** 초기 계약 초안. 29 경로/37 동작, JSON 수량 Decimal 문자열 제안 |
+| `docs/RBAC-MATRIX.md` | 역할별 R/C/U, 자기 승인, 소유권, 세션/CSRF/AI 보안 경계 |
+| `docs/SCREEN-SPEC.md` | 전달받은 `SCREEN-SPEC.md` v0.1을 최소 변경으로 개정한 **v0.2**; 실제 AI Studio 코드 변경 없음 |
+| `docs/OPEN-DECISIONS.md` | 개발자 A/B가 최종 선택·확인할 15개 세부 항목 |
+| `github/GITHUB-SETUP.md` | GitHub 조직 생성, 초대, Team, 권한, 2FA, 브랜치 보호, PR·Actions 안내 |
+| `github/TEAM-OPERATING-AGREEMENT.md` | 동등한 두 공동 개발자를 위한 운영 합의 초안(미서명) |
+| `github/CONTRIBUTING.md` | 제공된 원본 협업 규칙 복사본(변경 없음) |
+| `github/pull_request_template.md` | 제공된 원본 PR 템플릿 복사본. 저장소에서는 `.github/pull_request_template.md`로 이동 |
+| `github/.editorconfig` | 제공된 원본 편집기 설정 복사본(변경 없음) |
+
+## 주요 설계 원칙
+
+- **기확정 방향:** PR 헤더 일괄 승인, 1 PR에서 여러 PO, PO마다 공급업체 1곳, 부분 입고, AI는 DRAFT까지만.
+- **제안 세부:** `NUMERIC(18,3)` 수량, KRW 정수 단가, PR DRAFT 필요일 선택/제출 필수, 공급업체 이메일 선택, ADMIN 자기 승인 금지, 기본 RBAC 매트릭스 등. 팀 B의 확인이 남아 있음.
+- **불변식:** PR 품목 승인 수량 ≥ 그 품목에 배정된 유효 PO 발주 수량 총합, PO 품목 발주량 ≥ 누적 GR 입고량, 재고 현재고 = 개시재고 + 원장 이동 합계.
+- **단위:** 품목별 기준단위만 사용, 서로 다른 단위의 수량을 합산하지 않음.
+- **트랜잭션:** PO 생성에서 PR 품목 잠금. GR 확정에서 PO 헤더·품목 잠금과 GR/원장/현재고 동일 PostgreSQL 트랜잭션.
+- **책임:** A 품목·공급업체·PR/PO·Agent·공통 UI 디자인, B 창고·GR·Stock·Document AI·인증, CI/CD·배포·모니터링·PostgreSQL 운영 공동.
+
+## 전달받은 SCREEN-SPEC v0.1에서 수정·정리한 사항
+
+1. 문서 버전 v0.2 및 개정 메모. **원래 프로토타입이 수정됐다고 주장하지 않음.**
+2. 혼합 단위 품목의 발주 가능 여부는 `remainingToOrderTotal` 합산 대신 품목별 잔량 `>0` 존재 검사.
+3. 수량 정책 `EA/SET` 정수 + `KG/M/L` 3자리 소수 **제안**.
+4. `neededByDate` DRAFT 선택/제출 필수, 이메일 선택, ADMIN 자기 승인 거부 **제안** 표시.
+5. 문서 입력 `.xlsx` + 텍스트 PDF P0 **제안**, CSV/XLS와 OCR 제외.
+6. ES/LLM 품목 추천에 검증되지 않은 '신뢰도 %'를 사용하지 않도록 변경.
+7. 기능 매핑 직접 화면 항목 '29' 오타를 '30'으로 교정.
+8. 기존 API `/api/...`는 Mock 메모이고 새 OpenAPI `/api/v1`로 팀 합의 후 통일 필요.
+
+## 현재 확인한 것과 미확인
+
+**문서 검증:** YAML 파싱, 경로/메서드 개수·operationId 고유성·참조 스키마, Markdown 파일 존재, ZIP 무결성을 자동 점검할 계획.
+
+**미실행:** 실제 GitHub 조직 생성, GitHub 팀원 초대/권한 변경, DB 마이그레이션/SQL 실행, Spring Boot 빌드·테스트, AI Studio React 프로토타입 코드 실행, 실제 동시성 및 인증 테스트.
+
+## 사용 순서
+
+1. `docs/OPEN-DECISIONS.md`를 A/B 함께 검토해 세부값 확정.
+2. `docs/DB-SPEC.md`의 핵심 PK/FK·잠금/트랜잭션과 `docs/openapi.yaml`의 필드/에러/권한을 교차 리뷰.
+3. `docs/SCREEN-SPEC.md`를 실제 React 프로토타입과 비교해 UI 수정.
+4. `github/GITHUB-SETUP.md`를 따라 조직·저장소·보안·팀원 권한 설정(실제 관리자 계정 필요).
+5. 팀 확정 후 첫 수직 기능(Material/PR DRAFT 조회·저장) 구현 및 DB 마이그레이션/테스트, 계약서 갱신.
+
+
+## 2026-11-17 A 채택안 덮어쓰기(v0.2)
+
+기존 `docs/OPEN-DECISIONS.md`를 A 채택안으로 덮어쓰고 DB/RBAC/SCREEN/API-OWNERSHIP/OpenAPI를 함께 갱신했다. `openapi.yaml`의 GR 요청은 품목별 `storageLocationId`를 받도록 변경했다. 팀원 B의 최종 리뷰, DB 마이그레이션, 실제 API/React 테스트는 미완료다.

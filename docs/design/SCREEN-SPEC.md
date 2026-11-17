@@ -1,9 +1,9 @@
 # 차곡ERP 화면 명세서 (SCREEN-SPEC.md)
 
-> **문서 버전:** v0.2 (2주 차 설계 대조·수정 제안 반영본)  
+> **문서 버전:** v0.3 (2주 차 설계 대조·수정 제안 반영본)  
 > **작성 기준일:** 2026-11-17  
 > **서비스명:** 차곡ERP (Chagok ERP) — *업무를 차곡차곡, 정확하게.*  
-> **문서 성격:** 본 문서는 React + TypeScript 기반 화면 프로토타입과 1주 차 기획·계약 문서 사이의 추적성을 보장하기 위한 **화면 설계 명세서**입니다. 본 문서는 화면 설계 초안입니다. 병행 작성한 `../api/openapi.yaml`, `../database/DB-SPEC.md`, `../security/RBAC-MATRIX.md` v0.1은 **제안**이며 A/B 리뷰 전까지 확정 계약이 아닙니다. **AI Studio의 실제 React 프로토타입 코드는 전달받지 않아 화면 동작 재검증은 하지 않았습니다.**
+> **문서 성격:** 본 문서는 React + TypeScript 기반 화면 프로토타입과 1주 차 기획·계약 문서 사이의 추적성을 보장하기 위한 **화면 설계 명세서**입니다. 본 문서는 화면 설계 초안입니다. 병행 작성한 `openapi.yaml`, `DB-SPEC.md`, `RBAC-MATRIX.md` v0.1은 **제안**이며 A/B 리뷰 전까지 확정 계약이 아닙니다. **AI Studio의 실제 React 프로토타입 코드는 전달받지 않아 화면 동작 재검증은 하지 않았습니다.**
 
 ---
 
@@ -17,13 +17,13 @@
 ### 2) 참조 문서 및 기준 버전
 | 구분 | 문서명 | 버전 | 주요 참조 내용 |
 |---|---|---|---|
-| 기획/범위 | `../planning/01-PRD.md` / `../planning/02-MVP-SCOPE.md` / `../planning/차곡ERP_통합기획서_v3.3.md` | v0.3 / v3.3 | 목표, 대상 사용자, P0/P1/P2·제외 범위, `FIX-01~05` |
-| 역할 분담 | `../planning/03-ROLE-AGREEMENT.md` | v0.3 | A(디자인/구매/Agent)·B(인증/입고/재고/문서AI) 책임 경계 |
-| 업무 흐름/규칙 | `../business/04-ERP-WORKFLOW.md` / `../business/06-ERP-BUSINESS-RULES.md` | v0.3 | 상태 전이, `BR-001~027`, `TC-01~25`, PO↔GR 트랜잭션 |
-| SAP 참고 | `../references/05-SAP-REFERENCE.md` | v0.2 | EDMX 참고(비복제 원칙, `Plant != Warehouse`) |
-| 기능 명세 | `../planning/FUNCTIONAL-SPEC.md` / `../planning/FUNCTION-COVERAGE.md` | v0.2 | P0 40개 기능 ID, 입출력, 예외, 완료 기준 |
+| 기획/범위 | `01-PRD.md` / `02-MVP-SCOPE.md` / `차곡ERP_통합기획서_v3.3.md` | v0.3 / v3.3 | 목표, 대상 사용자, P0/P1/P2·제외 범위, `FIX-01~05` |
+| 역할 분담 | `03-ROLE-AGREEMENT.md` | v0.3 | A(디자인/구매/Agent)·B(인증/입고/재고/문서AI) 책임 경계 |
+| 업무 흐름/규칙 | `04-ERP-WORKFLOW.md` / `06-ERP-BUSINESS-RULES.md` | v0.3 | 상태 전이, `BR-001~027`, `TC-01~25`, PO↔GR 트랜잭션 |
+| SAP 참고 | `05-SAP-REFERENCE.md` | v0.2 | EDMX 참고(비복제 원칙, `Plant != Warehouse`) |
+| 기능 명세 | `FUNCTIONAL-SPEC.md` / `FUNCTION-COVERAGE.md` | v0.2 | P0 40개 기능 ID, 입출력, 예외, 완료 기준 |
 | 사이트맵/시나리오 | `07-SITEMAP-SCREEN-LIST.md` / `08-USER-SCENARIOS.md` | v0.2 | 17개 P0 논리 화면 ID(`SCR-*`), `US-01~06` |
-| 서비스 계약/결정 | `../api/09-PO-GR-CONTRACT.md` / `../api/10-AI-PR-DRAFT-CONTRACT.md` / `../project-management/11-WEEK1-REVIEW-DECISIONS.md` | v0.2 | PO↔GR 잠금·멱등, AI↔PR 공통 저장 계약, `D-01~11` |
+| 서비스 계약/결정 | `09-PO-GR-CONTRACT.md` / `10-AI-PR-DRAFT-CONTRACT.md` / `11-WEEK1-REVIEW-DECISIONS.md` | v0.2 | PO↔GR 잠금·멱등, AI↔PR 공통 저장 계약, `D-01~11` |
 
 ### 3) 화면 ID 명명 규칙 및 추적성
 - 화면 ID는 `SCR-{도메인}-{순번}` 형식을 따른다(`07-SITEMAP-SCREEN-LIST.md` v0.2 준수).
@@ -50,9 +50,9 @@
 
 ## 7.1.1 2주 차 개정 메모 (기존 AI Studio 코드 미변경)
 
-- **설계 우선 적용안(아직 팀 합의 전)**: 공급업체 이메일 선택, PR 필요일은 DRAFT 선택·SUBMIT 필수, `ADMIN`도 자기 승인 불가, `EA`/`SET` 정수·`KG`/`M`/`L` 최대 소수 3자리.
+- **A 채택 정책(B 교차 리뷰 전)**: 공급업체 이메일 선택, PR 필요일은 DRAFT 선택·SUBMIT 필수, `ADMIN`도 자기 승인 불가, `EA`/`SET` 정수·`KG`/`M`/`L` 최대 소수 3자리.
 - **기존 프로토타입과 불일치**: 위 정책 및 창고 등록/수정, `.xlsx`/텍스트 PDF만 허용, 매칭 신뢰도 % 대신 추천 순위 표시를 React 구현 단계에서 수정해야 한다. 원래 프로토타입이 이미 수정됐다고 주장하지 않는다.
-- **API URL**: 2주 차 `../api/openapi.yaml`에서는 `/api/v1`를 제안한다. 이 문서의 `/api/...` 표기는 기존 Mock의 연동 메모이며 구현 전 일괄 통일해야 한다.
+- **API URL**: 2주 차 `openapi.yaml`에서는 `/api/v1`를 제안한다. 이 문서의 `/api/...` 표기는 기존 Mock의 연동 메모이며 구현 전 일괄 통일해야 한다.
 - **업무 데이터**: 각 PR 품목의 미발주 잔량은 개별 계산하고, 서로 다른 단위를 합산해 발주 가능 여부를 판정하지 않는다.
 
 ---
@@ -586,7 +586,7 @@ flowchart TD
 
 ## 7.7 기능 누락 검증 및 문서 간 불일치 분석
 
-### 1) `../planning/FUNCTIONAL-SPEC.md` P0 40개 기능 전수 대조
+### 1) `FUNCTIONAL-SPEC.md` P0 40개 기능 전수 대조
 
 #### A. 화면에 매핑된 기능 (30개; 프로토타입 주장 검증 전)
 | 기능 ID | 기능명 | 매핑 화면 ID | 구현 수준 (프로토타입) |
@@ -648,12 +648,12 @@ flowchart TD
 
 | 번호 | 불일치/차이 항목 | 문서 A vs 문서 B / 프로토타입 차이 | 수정 제안 |
 |---|---|---|---|
-| 1 | **공급업체(`SUP-01`) 이메일 필수 여부** | `../planning/FUNCTIONAL-SPEC.md` `SUP-01`은 `전화/이메일·사용 상태`를 입력으로 명시하고 `SuppliersScreen` UI는 `이메일 *` 필수 표기를 하지만, 서비스 로직(`createSupplier`)과 `06-ERP-BUSINESS-RULES`는 전화번호만 필수 검증하고 이메일 형식/필수 검사를 생략함. | `SUP-01` 및 `DB-SPEC`에서 공급업체 이메일의 필수/선택 여부와 형식 정규식(`RFC 5322` 기본 검증)을 합의해 UI와 백엔드 검증을 일치시킬 것. |
+| 1 | **공급업체(`SUP-01`) 이메일 필수 여부** | `FUNCTIONAL-SPEC.md` `SUP-01`은 `전화/이메일·사용 상태`를 입력으로 명시하고 `SuppliersScreen` UI는 `이메일 *` 필수 표기를 하지만, 서비스 로직(`createSupplier`)과 `06-ERP-BUSINESS-RULES`는 전화번호만 필수 검증하고 이메일 형식/필수 검사를 생략함. | `SUP-01` 및 `DB-SPEC`에서 공급업체 이메일의 필수/선택 여부와 형식 정규식(`RFC 5322` 기본 검증)을 합의해 UI와 백엔드 검증을 일치시킬 것. |
 | 2 | **PR `납품 필요일`(`neededByDate`) 필수 여부** | `FUNCTIONAL-SPEC` `PR-01`은 `"필요일(정책 확정 시)"`, `10-AI-PR-DRAFT-CONTRACT`는 `DRAFT` 단계에서 선택이고 `SUBMIT` 시 검증 가능으로 기술하나, `SCR-PR-002` UI 모달은 `납품 필요일 *`을 필수(`required`) + 기본값(`2026-11-30`)으로 고정함. | `D-11` 및 `10` 계약에서 `neededByDate`를 `DRAFT` 선택 / `SUBMIT` 필수 여부로 확정하고 UI 기본값 자동 채움 정책을 명시할 것. |
 | 3 | **Document AI 허용 파일 확장자 (`D-07`)** | `11-WEEK1-REVIEW-DECISIONS` `D-07`과 `07-SITEMAP`은 `XLSX 1~2종 · 텍스트 PDF 1종`으로 한정하나, 현재 프로토타입 `AssistantScreen`은 `.csv` 업로드를 함께 허용함(`accept=".xlsx,.xls,.csv,.pdf"`). | P0 입력을 `.xlsx`·텍스트 `.pdf`로 제한하는 것을 제안한다. 기존 `.xls`·`.csv` 허용 UI/안내는 수정 대상이며 B 검토 후 확정한다. |
 | 4 | **창고(`WH-01`) 생성·수정 범위** | `FUNCTIONAL-SPEC` `WH-01` 및 `07-SITEMAP` `SCR-WH-001`은 `"창고/저장위치 생성·조회·수정"`을 기재하나, 현재 프로토타입 `SCR-WH-001`은 창고 조회 + 저장위치 추가만 구현되어 있고 창고 신규 등록/수정 및 저장위치 비활성화 토글은 없음. | P0 시연용 창고는 시드 데이터로 고정할지, 창고 등록·활성 전환 UI까지 포함할지 B와 범위 확정 필요. |
 | 5 | **기준정보(`MAT-01`, `SUP-01`) 및 대시보드 역할별 접근 권한** | `07-SITEMAP` 2항 기본 제안은 `요청자=PR·Assistant`, `승인자=승인함`, `창고=입고·재고`로 단순 분리하지만, 현재 프로토타입 `SCREEN_PERMISSIONS`는 `REQUESTER`/`APPROVER`도 품목·공급업체를 조회할 수 있고 `WAREHOUSE`는 공급업체를 제한하며 `PURCHASER`는 창고를 조회할 수 있음. | 2주 차 세부 RBAC 매트릭스 작성 시 역할별 **메뉴 조회(Read)** 권한과 **등록/수정(Write)** 권한을 명확히 구분하여 표로 확정할 것. |
-| 6 | **수량 정밀도 및 금액 반올림 기준 (`D-03`)** | `06-ERP-BUSINESS-RULES` `BR-014`는 `NUMERIC`/`BigDecimal` 정밀도·반올림을 미정으로 두었으나, 프로토타입은 `EA` 정수 + 비`EA` 소수점 3자리(`0.001`) + 원화 `Math.round()`를 선적용함. | `../database/DB-SPEC.md`에서 `NUMERIC(15,3)`(또는 `(18,4)`) 및 KRW 반올림(`HALF_UP`) 기준을 공식 확정할 것. |
+| 6 | **수량 정밀도 및 금액 반올림 기준 (`D-03`)** | `06-ERP-BUSINESS-RULES` `BR-014`는 `NUMERIC`/`BigDecimal` 정밀도·반올림을 미정으로 두었으나, 프로토타입은 `EA` 정수 + 비`EA` 소수점 3자리(`0.001`) + 원화 `Math.round()`를 선적용함. | `DB-SPEC.md`에서 `NUMERIC(15,3)`(또는 `(18,4)`) 및 KRW 반올림(`HALF_UP`) 기준을 공식 확정할 것. |
 | 7 | **자기 승인 금지 및 겸직(`D-02`)** | `06-ERP-BUSINESS-RULES` 6항 및 `11-WEEK1` `D-02`는 자기 승인 금지를 권장하되 팀 검토 대상으로 남겼으며, 프로토타입은 일반 `APPROVER`는 자기 승인을 차단하되 `ADMIN`만 예외 허용함. | 실서비스에서는 `ADMIN`이라도 업무 분장(SoD) 원칙상 자기 PR 승인을 막을지, 또는 `ADMIN` 시연 예외를 둘지 최종 합의 필요. |
 
 ---
@@ -662,9 +662,20 @@ flowchart TD
 
 | 분류 | 항목 | 관련 결정/문서 | 확인 주체 | 목표 시점 |
 |---|---|---|---|---|
-| **API 계약** | 실제 REST Method, Endpoint URL, 요청/응답 DTO, 공통 오류 코드(`401/403/409/422`) | `../api/openapi.yaml`, `D-11` | A + B | 2주 차 API 설계 |
-| **DB 스키마** | PostgreSQL 테이블/컬럼명, `NUMERIC(p,s)` 정밀도, KRW 반올림, 낙관적/비관적 잠금(`FOR UPDATE` 순서) | `../database/DB-SPEC.md`, `D-03`, `D-05` | A + B | 2주 차 ERD 설계 |
+| **API 계약** | 실제 REST Method, Endpoint URL, 요청/응답 DTO, 공통 오류 코드(`401/403/409/422`) | `openapi.yaml`, `D-11` | A + B | 2주 차 API 설계 |
+| **DB 스키마** | PostgreSQL 테이블/컬럼명, `NUMERIC(p,s)` 정밀도, KRW 반올림, 낙관적/비관적 잠금(`FOR UPDATE` 순서) | `DB-SPEC.md`, `D-03`, `D-05` | A + B | 2주 차 ERD 설계 |
 | **권한·보안** | 역할별 세부 CRUD/조회 권한 매트릭스, 복수 역할 겸직 여부, 자기 승인 금지 예외, CSRF 정책, Spring Boot↔AI 서비스 간 사용자 신원 위임 방식 | `D-02`, `D-09`, `09/10` 계약 | B 주도 / A 리뷰 | 인증·AI 계약 전 |
 | **입고·발주 계약** | 동시 경합(`60+60`) 실패 응답 표준, `OPENING` 초기 재고 시드 기본 창고·위치 정책 | `09-PO-GR-CONTRACT`, `D-04`, `D-05` | B 주도 / A 리뷰 | PO↔GR 구현 전 |
 | **AI·검색·문서** | Rust AI 서비스(Rig) 채택 여부, LLM/Embedding 모델, ES 색인 비동기 재처리·재색인 정책, 파일 용량/시트 제한, RAG 규정 다중 버전 정책 | `D-07`, `D-08`, `D-10` | A + B (각 PoC) | PoC 완료 후 |
 | **화면/운영** | `SCR-ADM-001` 포함 여부, 대시보드 역할별 카드 필터링 및 향후 차트 배치, `WH-01` 창고 생성/비활성 UI 추가 여부 | `07-SITEMAP`, `UX-01` | A + B | 2주 차 화면 리뷰 |
+
+
+## v0.3 A 채택 화면 정책 (B 리뷰·React 실제 검증 전)
+
+- `SCR-GR-001`: GR 헤더에서 PO·창고를 선택하고 **각 입고 품목 행에서 해당 창고의 저장위치를 별도로 선택**한다. 다른 창고 소속/비활성 위치는 선택·저장 불가. 모든 행을 한 번에 확정한다.
+- `SCR-PR-002`: DRAFT 필요일 선택, SUBMIT에서 필요일 필수. 동일 PR 내 같은 품목 중복 추가 차단.
+- `SCR-SUP-001`: 전화 필수, 이메일 선택 및 형식 검증. `SCR-WH-001`: 창고 생성·수정과 저장위치 관리.
+- `SCR-AI-002`: P0 업로드는 `.xlsx`와 텍스트 `.pdf`; 매칭 점수를 검증되지 않은 신뢰도 백분율로 표시하지 않는다.
+- `SCR-APR-001`: ADMIN을 포함해 자기 승인·반려 금지. 겸직 역할에서도 소유권 검사 유지.
+- `SCR-PO-001` / `SCR-GR-001`: 409 충돌은 최신 상태를 다시 조회하고 사용자 확인 후 새 업무 요청은 새 `requestKey` 사용. 동일 내용의 네트워크 재시도만 기존 키 재사용.
+- 기존 상세 화면 표 중 상충하는 표현은 이 v0.3 절의 A 채택 정책이 우선한다. **React 코드와 Mock 동작을 수정하거나 테스트한 것은 아니다.**

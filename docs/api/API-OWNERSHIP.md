@@ -1,7 +1,7 @@
 # 차곡ERP REST API 구현 책임·리뷰 매핑 (API-OWNERSHIP)
 
 > **v0.1 · 2026-11-17 · A/B 검토용**
-> 기준: 최신 통합 기획서 v3.3, `../planning/FUNCTIONAL-SPEC.md` v0.2, `../planning/03-ROLE-AGREEMENT.md` v0.3, `openapi.yaml` v0.1.0-draft, `../security/RBAC-MATRIX.md` v0.1.
+> 기준: 최신 통합 기획서 v3.3, `FUNCTIONAL-SPEC.md` v0.2, `03-ROLE-AGREEMENT.md` v0.3, `openapi.yaml` v0.1.0-draft, `RBAC-MATRIX.md` v0.1.
 > **의미:** 기능/도메인 담당(A/B)은 기존 합의에 따르며, 이 문서의 **API별 리뷰 지정·DTO 검토 항목은 제안**이다. 실제 구현 완료나 팀 최종 승인 상태가 아니다.
 
 ## 1. 목적과 집계
@@ -204,19 +204,27 @@ POST /api/v1/goods-receipts             # API/Controller: B
 
 ### A+B 공동 리뷰 후
 
-- [ ] `../project-management/OPEN-DECISIONS.md`의 X-01~X-14 관련 항목 합의 여부 기록; 1주 차 D-01/02 확정 유지
+- [ ] `OPEN-DECISIONS.md`의 X-01~X-14 관련 항목 합의 여부 기록; 1주 차 D-01/02 확정 유지
 - [ ] OpenAPI 변경 시 operationId·기능 ID·담당자 매핑 갱신
-- [ ] `../database/DB-SPEC.md`, `../security/RBAC-MATRIX.md`, `../design/SCREEN-SPEC.md`와 관련 변경 동시 리뷰
+- [ ] `DB-SPEC.md`, `RBAC-MATRIX.md`, `SCREEN-SPEC.md`와 관련 변경 동시 리뷰
 - [ ] E2E 세 경로(PR→PO→GR→Stock, Agent→PR, Document AI→PR) 통합 테스트 계획 작성
 - [ ] 실제 검증 환경(테스트 컨테이너/PostgreSQL/CI), 실행 날짜·실패 내역을 PR에 기록
 
 ## 8. 관련 문서·유지 규칙
 
 - [OpenAPI 계약 초안](openapi.yaml) — 경로/메서드/DTO의 단일 기준
-- [권한 매트릭스](../security/RBAC-MATRIX.md) — 현재 제안된 RBAC 규칙
-- [열린 설계 결정](../project-management/OPEN-DECISIONS.md) — X-01~X-15 승인 기록
-- `../planning/FUNCTIONAL-SPEC.md` — P0 40개 기능 ID와 담당, 수용 조건
-- `../planning/03-ROLE-AGREEMENT.md` — 팀 도메인·공통 인프라 역할 합의
+- [권한 매트릭스](RBAC-MATRIX.md) — 현재 제안된 RBAC 규칙
+- [열린 설계 결정](OPEN-DECISIONS.md) — X-01~X-15 승인 기록
+- `FUNCTIONAL-SPEC.md` — P0 40개 기능 ID와 담당, 수용 조건
+- `03-ROLE-AGREEMENT.md` — 팀 도메인·공통 인프라 역할 합의
 - `09-PO-GR-CONTRACT.md` — B GR 오케스트레이터와 A PO 내부 서비스 계약
 
 **업데이트 규칙:** OpenAPI의 경로·Method·operationId가 수정되면 이 매핑도 같은 PR에서 갱신한다. API 삭제/추가로 총 37개가 바뀌면 실제 OpenAPI 기준으로 수를 다시 센다. GitHub 이슈/PR에는 구현 담당과 리뷰 담당을 구분하고, 공통 계약 변경은 양측 승인이 필요한 변경으로 다룬다.
+
+
+## v0.2 A 상세 정책 반영 (B 리뷰 전)
+
+- X-10: `GRCreate`는 GR 헤더의 `warehouseId`와 각 `GRItemInput.storageLocationId`를 받는다. 한 GR은 하나의 PO/창고, 품목별 저장위치는 달라도 된다. 서버는 각 위치의 소속·활성·PO 품목·단위를 재검증한다.
+- 기존 위쪽 'GR REST vs 내부 Java 계약' 표 및 검토 항목은 **v0.1 당시 발견 기록**이며, 외부 REST 위치 필드는 위 계약으로 갱신되었다. 단위는 서버에서 PO 기준단위를 조회·검증한다.
+- GR Controller/오케스트레이션 B, PO 누적입고 내부 서비스 A, 동일 트랜잭션 책임 B. A/B 교차 리뷰는 미완료.
+- PR 상태 변경의 `expectedVersion`과 `requestKey`, 공통 에러 객체의 상세 적용은 A 채택 방향이며 기존 모든 경로에 반영됐다는 의미는 아니다.

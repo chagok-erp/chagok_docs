@@ -1,8 +1,8 @@
 # 차곡ERP DB 명세 및 초기 ERD
 
-> 버전: v0.1 / 2026-11-17 / 상태: **2주 차 설계 초안, A·B 교차 리뷰 전**  
+> 버전: v0.2 / 2026-11-17 / 상태: **A 상세 정책 채택, B 교차 리뷰 전**  
 > 원본: 기획서 v3.3, MVP v0.3, 09 PO↔GR 계약 v0.2, 10 AI↔PR 계약 및 화면 명세 v0.1.  
-> 대상: PostgreSQL, Java `BigDecimal`, 모듈형 모놀리스. **아래 물리명·정밀도는 제안**이며 아직 마이그레이션을 실행하지 않았다.
+> 대상: PostgreSQL, Java `BigDecimal`, 모듈형 모놀리스. **아래 물리명·정밀도는 A 채택안이며 B 리뷰 전**이며 아직 마이그레이션을 실행하지 않았다.
 
 ## 1. 확정 업무 정책과 이번 DB 제안 구분
 
@@ -12,12 +12,12 @@
 | PR 전체 일괄 승인 | 사용자 결정 | `purchase_requisitions.status`, 품목별 승인 테이블 없음 |
 | GR 1회 = PO 1개, 부분 입고 | 사용자 수용 | GR 품목은 PO 품목을 참조, PO 원발주량 보존 |
 | 최초 재고 `OPENING` 원장 | 사용자 수용 | 원장+현재고를 같은 트랜잭션에서 적재 |
-| `NUMERIC(18,3)` 수량 / `NUMERIC(18,0)` KRW | **설계 제안** | EA/SET 정수 제약은 단위별 애플리케이션 검증; 환산 없음 |
-| `needed_by_date` DRAFT 선택, 제출 필수 | **설계 제안** | UI·Agent·Document 입력 경로 일치 필요 |
-| 공급업체 이메일 선택, 전화 필수 | **설계 제안** | UI 필수 별표 수정 필요 |
-| ADMIN 포함 자기 승인 금지 | **설계 제안** | SoD 유지. 역할 겸직이어도 작성자=승인자면 불가 |
-| PostgreSQL 시퀀스·UUID 기준 | **설계 제안** | 내부 PK UUID, 대외 문서번호 별도 UNIQUE |
-| DELETE 정책 | **설계 제안** | 업무 문서/원장 물리 삭제 금지, 기준정보는 비활성화 |
+| `NUMERIC(18,3)` 수량 / `NUMERIC(18,0)` KRW | **A 채택 / B 리뷰 전** | EA/SET 정수 제약은 단위별 애플리케이션 검증; 환산 없음 |
+| `needed_by_date` DRAFT 선택, 제출 필수 | **A 채택 / B 리뷰 전** | UI·Agent·Document 입력 경로 일치 필요 |
+| 공급업체 이메일 선택, 전화 필수 | **A 채택 / B 리뷰 전** | UI 필수 별표 수정 필요 |
+| ADMIN 포함 자기 승인 금지 | **A 채택 / B 리뷰 전** | SoD 유지. 역할 겸직이어도 작성자=승인자면 불가 |
+| PostgreSQL 시퀀스·UUID 기준 | **A 채택 / B 리뷰 전** | 내부 PK UUID, 대외 문서번호 별도 UNIQUE |
+| DELETE 정책 | **A 채택 / B 리뷰 전** | 업무 문서/원장 물리 삭제 금지, 기준정보는 비활성화 |
 
 ## 2. 관계형 ERD (핵심 거래 구조)
 
@@ -155,3 +155,15 @@ erDiagram
 - [ ] A/B: PO item 동일 PR item 중복 처리·GR item 동일 PO item 중복 처리 확정
 - [ ] A/B: DB FK/시드/인덱스·실제 마이그레이션 파일 리뷰
 - [ ] A/B: API 스키마 및 화면과의 정합성 검증
+
+
+## 2주 차 A 채택안 v0.2 적용 보충 (X-01~X-10)
+
+- 수량 `NUMERIC(18,3)` / Java `BigDecimal` / JSON Decimal 문자열. EA·SET는 정수, KG·M·L은 소수 최대 3자리. 단위 환산은 P0 제외.
+- KRW 단가는 정수 원, 각 PO 품목의 `orderedQty * unitPrice`를 원 단위 `HALF_UP`으로 반올림하고 PO 총액은 반올림된 품목 금액의 합.
+- PR `needed_by_date`는 DRAFT에서 선택, SUBMIT에서 필수. 공급업체 전화 필수, 이메일 선택·형식 검증.
+- `user_roles(user_id,role_code)` 복수 역할 허용. 역할 겸직/ADMIN이라도 자기 PR 승인·반려 금지. 타인 DRAFT 수정/제출 금지.
+- PR 품목 `(pr_id,material_id)` UNIQUE **A 제안**. PO 품목 `(po_id,pr_item_id)` UNIQUE; `pr_item_id` 전역 UNIQUE 금지(분할 발주 보장).
+- **GR은 하나의 PO와 하나의 창고를 참조하되, `goods_receipt_items.storage_location_id`는 품목별로 다르게 지정 가능.** 모든 저장위치는 GR 헤더 창고 소속이고 활성 상태여야 함. 같은 PO 품목을 한 GR 내 중복 행으로 기록하지 않음.
+- 원장/현재고/PO 누적입고/GR 문서 생성은 하나의 PostgreSQL 트랜잭션으로 확정.
+- 위 항목은 A 채택안이며 B 검토 전 최종 팀 합의가 아니다. DB 마이그레이션/실행은 미완료.
