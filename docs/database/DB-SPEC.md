@@ -1,6 +1,6 @@
 # 차곡ERP DB 명세 및 초기 ERD
 
-> 버전: v0.2 / 2026-11-17 / 상태: **A 상세 정책 채택, B 교차 리뷰 전**  
+> 버전: v0.3 / 2026-11-18 / 상태: **A 상세 정책 채택, B 교차 리뷰 전**  
 > 원본: 기획서 v3.3, MVP v0.3, 09 PO↔GR 계약 v0.2, 10 AI↔PR 계약 및 화면 명세 v0.1.  
 > 대상: PostgreSQL, Java `BigDecimal`, 모듈형 모놀리스. **아래 물리명·정밀도는 A 채택안이며 B 리뷰 전**이며 아직 마이그레이션을 실행하지 않았다.
 
@@ -10,7 +10,7 @@
 |---|---|---|
 | 1 PR → N PO, PO당 공급업체 한 곳 | 사용자 결정 | PR 품목 1개를 여러 PO 품목이 참조 가능 |
 | PR 전체 일괄 승인 | 사용자 결정 | `purchase_requisitions.status`, 품목별 승인 테이블 없음 |
-| GR 1회 = PO 1개, 부분 입고 | 사용자 수용 | GR 품목은 PO 품목을 참조, PO 원발주량 보존 |
+| GR 1회 = PO 1개, 부분 입고 및 초안 저장 | 사용자 수용 | GR 확정 품목은 PO 품목을 참조, PO 원발주량 보존; 초안은 변경 효과 없음 |
 | 최초 재고 `OPENING` 원장 | 사용자 수용 | 원장+현재고를 같은 트랜잭션에서 적재 |
 | `NUMERIC(18,3)` 수량 / `NUMERIC(18,0)` KRW | **A 채택 / B 리뷰 전** | EA/SET 정수 제약은 단위별 애플리케이션 검증; 환산 없음 |
 | `needed_by_date` DRAFT 선택, 제출 필수 | **A 채택 / B 리뷰 전** | UI·Agent·Document 입력 경로 일치 필요 |
@@ -35,11 +35,12 @@ erDiagram
     PURCHASE_ORDERS ||--|{ PURCHASE_ORDER_ITEMS : contains
     REQUISITION_ITEMS ||--o{ PURCHASE_ORDER_ITEMS : allocated_to
     PURCHASE_ORDERS ||--o{ GOODS_RECEIPTS : received_under
-    GOODS_RECEIPTS ||--|{ GOODS_RECEIPT_ITEMS : contains
-    PURCHASE_ORDER_ITEMS ||--o{ GOODS_RECEIPT_ITEMS : received_as
+    GOODS_RECEIPTS ||--o{ GOODS_RECEIPT_ITEMS : contains_if_any
+    PURCHASE_ORDER_ITEMS |o--o{ GOODS_RECEIPT_ITEMS : linked_when_valid
     WAREHOUSES ||--o{ STORAGE_LOCATIONS : contains
-    STORAGE_LOCATIONS ||--o{ GOODS_RECEIPT_ITEMS : stored_at
-    GOODS_RECEIPT_ITEMS ||--|| STOCK_MOVEMENTS : posts
+    WAREHOUSES |o--o{ GOODS_RECEIPTS : chosen_warehouse
+    STORAGE_LOCATIONS |o--o{ GOODS_RECEIPT_ITEMS : stored_when_set
+    GOODS_RECEIPT_ITEMS |o--o| STOCK_MOVEMENTS : posts_when_posted
     MATERIALS ||--o{ STOCK_BALANCES : counted
     STORAGE_LOCATIONS ||--o{ STOCK_BALANCES : held_in
     MATERIALS ||--o{ STOCK_MOVEMENTS : moved
@@ -48,7 +49,7 @@ erDiagram
     APP_USERS ||--o{ AUDIT_LOGS : performs
 ```
 
-> `STOCK_MOVEMENTS`는 `GR_IN`과 `OPENING` 둘 다 저장한다. 따라서 `goods_receipt_item_id`는 **GR_IN일 때만 채워지며 NULL 허용**이다. 그림의 `GOODS_RECEIPT_ITEMS ||--|| STOCK_MOVEMENTS`는 **GR_IN 한정 1:1**을 뜻한다. 원장 전체에 대한 필수 FK가 아님.
+> `STOCK_MOVEMENTS`는 `GR_IN`과 `OPENING` 둘 다 저장한다. 따라서 `goods_receipt_item_id`는 **GR_IN일 때만 채워지며 NULL 허용**이다. 그림의 `GOODS_RECEIPT_ITEMS |o--o| STOCK_MOVEMENTS`는 **GR_IN으로 확정된 항목 한정 1:1**을 뜻한다. 원장 전체에 대한 필수 FK가 아님.
 
 ## 3. 핵심 데이터 사전
 
@@ -71,7 +72,7 @@ erDiagram
 | 테이블 | 주요 컬럼 | 제약/설명 |
 |---|---|---|
 | `purchase_requisitions` | `id UUID PK`, `pr_number UQ NN`, `requester_id FK NN`, `title NN`, `needed_by_date DATE NULL`, `status NN`, `version BIGINT NN`, `source`, `created_at`, `updated_at` | 상태 `DRAFT/SUBMITTED/APPROVED/REJECTED`; 반려→재작업 후 `DRAFT`; 미발주 잔량은 **품목별** 계산 |
-| `requisition_items` | `id UUID PK`, `pr_id FK NN`, `material_id FK NN`, `requested_qty NUMERIC(18,3) NN`, `unit NN`, `display_order INT NN` | `CHECK(requested_qty>0)`, `UQ(pr_id,display_order)`; 품목의 당시 기준단위 스냅샷 |
+| `requisition_items` | `id UUID PK`, `pr_id FK NN`, `material_id FK NN`, `requested_qty NUMERIC(18,3) NN`, `unit NN`, `display_order INT NN` | `CHECK(requested_qty>0)`, `UQ(pr_id,display_order)`; **동일 PR 내 같은 material_id 중복 허용**, `UQ(pr_id,material_id)` 금지. 발주 누적은 `pr_item_id`별로 산정 |
 | `approval_history` | `id UUID PK`, `pr_id FK NN`, `actor_id FK NN`, `action NN`, `comment`, `occurred_at NN` | 제출/승인/반려/재작업 이력 append-only; 최종 상태는 PR에 보유 |
 | `purchase_orders` | `id UUID PK`, `po_number UQ NN`, `pr_id FK NN`, `supplier_id FK NN`, `status NN`, `created_by FK NN`, `total_amount NUMERIC(18,0)`, `created_at` | PO마다 **한 PR, 한 supplier**; `UNIQUE(pr_id)` **금지**; 상태 OPEN/PARTIALLY_RECEIVED/RECEIVED |
 | `purchase_order_items` | `id UUID PK`, `po_id FK NN`, `pr_item_id FK NN`, `ordered_qty NUMERIC(18,3) NN`, `received_qty NUMERIC(18,3) NN DEFAULT 0`, `unit NN`, `unit_price NUMERIC(18,0) NN` | `CHECK(ordered_qty>0)`, `CHECK(received_qty>=0 AND received_qty<=ordered_qty)`; `UQ(po_id,pr_item_id)` **P0 한 PO 내 동일 PR 품목 중복 금지 제안**, `pr_item_id` 전역 UQ 금지 |
@@ -82,8 +83,8 @@ erDiagram
 
 | 테이블 | 주요 컬럼 | 제약/설명 |
 |---|---|---|
-| `goods_receipts` | `id UUID PK`, `gr_number UQ NN`, `po_id FK NN`, `status='POSTED'`, `posted_by FK NN`, `posted_at NN`, `note` | 1 GR→1 PO, P0에서 수정·취소·삭제 없음 |
-| `goods_receipt_items` | `id UUID PK`, `gr_id FK NN`, `po_item_id FK NN`, `storage_location_id FK NN`, `received_qty NUMERIC(18,3) NN`, `unit NN` | `CHECK(received_qty>0)`; 품목이 해당 GR의 PO에 속하는지 검증. P0 단일 GR의 같은 PO 품목은 한 행만 허용 **제안** |
+| `goods_receipts` | `id UUID PK`, `gr_number UQ NN`, `po_id FK NN`, `warehouse_id FK NULL(DRAFT)`, `created_by FK NN`, `status NN`, `version BIGINT NN DEFAULT 1`, `posted_by FK NULL`, `posted_at TIMESTAMP NULL`, `note`, `created_at`, `updated_at` | `DRAFT/POSTED`. DRAFT 최소 `po_id`, `created_by`로 저장 가능. POSTED는 `warehouse_id`, `posted_by`, `posted_at` 필수(애플리케이션/조건부 CHECK). 한 GR은 한 PO와 한 창고. POSTED 수정·삭제 금지 |
+| `goods_receipt_items` | `id UUID PK`, `gr_id FK NN`, `po_item_id FK NULL(DRAFT)`, `storage_location_id FK NULL(DRAFT)`, `received_qty NUMERIC(18,3) NULL(DRAFT)`, `unit NULL(DRAFT)`, `display_order INT NN` | `CHECK(received_qty IS NULL OR received_qty>0)`, `UQ(gr_id,display_order)`; POSTED는 품목/위치/수량/단위 모두 필수. **동일 po_item_id가 서로 다른 저장위치로 반복 가능**. 같은 (gr_id,po_item_id,storage_location_id) 중복 행은 거부 제안(정확한 제약 B 리뷰) |
 | `stock_movements` | `id UUID PK`, `material_id FK NN`, `storage_location_id FK NN`, `movement_type NN`, `quantity_delta NUMERIC(18,3) NN`, `gr_item_id FK NULL UQ`, `reference_code NULL`, `occurred_at NN` | `GR_IN`은 `gr_item_id` 필수, `OPENING`은 NULL; append-only. 원장 레벨에서도 유형/참조 조합 체크 제안 |
 | `stock_balances` | `id UUID PK`, `material_id FK NN`, `storage_location_id FK NN`, `on_hand_qty NUMERIC(18,3) NN`, `updated_at NN` | **`UQ(material_id,storage_location_id)`**; 위치가 창고에 종속되어 창고 ID 중복 저장 안 함. `CHECK(on_hand_qty>=0)` |
 
@@ -107,10 +108,10 @@ erDiagram
 ## 4. 동시성, 상태, 정합성 불변식
 
 1. **PR 분할 발주:** `SUM(유효 purchase_order_items.ordered_qty WHERE pr_item_id=X) <= requisition_items.requested_qty`. 서로 다른 단위끼리 합산하지 않는다. PR 품목을 `FOR UPDATE`로 **ID 오름차순** 잠근 후 기존 발주 합계를 재조회하고 PO와 멱등 결과를 동일 트랜잭션 저장한다. P0에는 PO 취소가 없어서 생성된 모든 PO가 유효하다.
-2. **GR:** B가 트랜잭션 개시 → A의 PO 헤더 잠금 → PO 품목 ID 오름차순 잠금/잔량 검증 및 누적량 변경 → B가 GR/Items/StockMovements/StockBalances/감사/멱등 결과 저장 → 커밋. A 내부 서비스에서 커밋하거나 별도 트랜잭션(`REQUIRES_NEW`) 생성하지 않는다.
+2. **GR:** DRAFT 저장·수정은 PO 수량/원장/현재고를 건드리지 않는다. POSTED 확정은 `expectedVersion`으로 DRAFT 상태를 조건부 확인하고, B가 하나의 트랜잭션 개시 → A의 PO 헤더 및 PO 품목 ID 오름차순 잠금 → **GRItem 배분을 po_item_id별로 SUM**하여 잔량 검증 및 PO 누적량 변경 → B의 GR POSTED·위치별 원장/현재고·멱등 성공 결과 기록 → 커밋. A 내부 서비스는 `REQUIRES_NEW`/별도 HTTP 금지. 실패 시 DRAFT/PO/재고 모두 변경 없음.
 3. **PO 상태:** 각 `purchase_order_items`의 `ordered_qty - received_qty`가 모두 0 → `RECEIVED`; 일부 입고가 있으면 `PARTIALLY_RECEIVED`; 모두 0개 입고면 `OPEN`.
 4. **위치 현재고:** `stock_balances`의 `(material_id,storage_location_id)` 유니크, `INSERT ... ON CONFLICT ... DO UPDATE SET on_hand_qty=stock_balances.on_hand_qty + EXCLUDED.on_hand_qty` 등 원자적 갱신. 실제 SQL은 구현 시 잠금·음수 방지와 함께 검증.
-5. **원장:** P0에서 직접 UPDATE/DELETE 불가. `GR_IN` 원장 1건은 GR item 1건과 매핑. 원장 합계 = 개시재고+입고 = 현재고(위치/품목 기준).
+5. **원장:** P0에서 직접 UPDATE/DELETE 불가. POSTED GRItem(품목·위치 배분) 1행당 `GR_IN` 원장 1건, DRAFT GRItem은 원장 0건. 원장 합계 = 개시재고+확정입고 = 현재고(위치/품목 기준).
 6. **PR DRAFT:** `version`을 낙관적 락으로 검사; 재시도는 인증·멱등키·페이로드 검증 후 기성공 결과 반환. 다른 요청키의 구버전 수정은 거부. UI/Agent/Document는 같은 A의 저장 서비스 사용.
 7. **승인:** `SUBMITTED`만 승인/반려, `requester_id != actor_id`(ADMIN 포함 권장), 직렬화된 상태 변경. 이력 기록과 상태 변경은 같은 트랜잭션.
 8. **금액:** `unit_price` KRW 정수, `line_amount=ordered_qty × unit_price` 계산 시 `HALF_UP` 원 단위 **제안**. 계산은 Java `BigDecimal`로 하고 프론트의 부동소수점 값을 최종 결산값으로 신뢰하지 않는다.
@@ -123,12 +124,12 @@ erDiagram
 |---|---|---|
 | PR | `DRAFT`, `SUBMITTED`, `APPROVED`, `REJECTED` | DRAFT→SUBMITTED→APPROVED 또는 REJECTED→(명시적 재작업)DRAFT. APPROVED는 여러 PO 생성 중에도 유지 |
 | PO | `OPEN`, `PARTIALLY_RECEIVED`, `RECEIVED` | GR 누적량에 따라 결정. 원발주량은 변경하지 않음 |
-| GR | `POSTED` | 생성 시 확정, P0 취소·삭제 없음 |
+| GR | `DRAFT`, `POSTED` | DRAFT 생성/조회/수정 → 명시적 확정으로 POSTED. DRAFT는 재고 효과 0, POSTED는 불변이며 취소·삭제 없음 |
 | StockMovement | `OPENING`, `GR_IN` | append-only. 출고·이동·취소는 P0 제외 |
 
 ## 6. 인덱스 및 FK·마이그레이션 계획
 
-- PK 인덱스와 UQ는 위 데이터 사전에 명시. 조회 보조 인덱스 **제안**: `requisition_items(pr_id)`, `purchase_orders(pr_id)`, `purchase_order_items(pr_item_id)`, `goods_receipts(po_id,posted_at)`, `goods_receipt_items(po_item_id)`, `stock_movements(material_id,storage_location_id,occurred_at)`, `purchase_requisitions(requester_id,status,created_at)`.
+- PK 인덱스와 UQ는 위 데이터 사전에 명시. 조회 보조 인덱스 **제안**: `requisition_items(pr_id)`, `purchase_orders(pr_id)`, `purchase_order_items(pr_item_id)`, `goods_receipts(po_id,status,created_at)`, `goods_receipt_items(gr_id,display_order)`, `goods_receipt_items(po_item_id)`, `stock_movements(material_id,storage_location_id,occurred_at)`, `purchase_requisitions(requester_id,status,created_at)`.
 - 통합 FK는 실제 참조 방향과 삭제 정책을 공동 검토 후 명시. 업무 이력 참조 엔티티에는 `ON DELETE CASCADE`를 기본 적용하지 않는다.
 - 마이그레이션은 **단일 소유 디렉터리 + 파일명 중복 금지**(Flyway 후보); 공통 설정 변경 전 A/B 합의. 스키마 변경 PR에는 롤백·데이터 이행 영향을 기록한다.
 - **첫 실행 순서:** B: `roles/users/warehouses/locations` 기초, A: `materials/suppliers/PR`, A: `PO`, B: `GR/stock`, 공동: 경합·멱등·시드 검증. 실제 파일명/순서는 팀이 합의 후 지정.
@@ -152,7 +153,7 @@ erDiagram
 - [ ] A/B: `NUMERIC(18,3)`, KRW 반올림, 기준단위 정수/소수 정책 확인
 - [ ] A/B: PR 초안 필요일·공급업체 이메일 정책 확인
 - [ ] A/B: 자기 승인 금지(ADMIN 포함)와 역할 겸직 정책 확인
-- [ ] A/B: PO item 동일 PR item 중복 처리·GR item 동일 PO item 중복 처리 확정
+- [ ] A/B: 한 PO 내 동일 PR item 1행 정책 확인. 한 GR 내 동일 PO item은 다른 저장위치에 여러 행 가능; 동일 PO item·동일 위치 중복 배분 거부 정책 B 리뷰
 - [ ] A/B: DB FK/시드/인덱스·실제 마이그레이션 파일 리뷰
 - [ ] A/B: API 스키마 및 화면과의 정합성 검증
 
@@ -163,7 +164,17 @@ erDiagram
 - KRW 단가는 정수 원, 각 PO 품목의 `orderedQty * unitPrice`를 원 단위 `HALF_UP`으로 반올림하고 PO 총액은 반올림된 품목 금액의 합.
 - PR `needed_by_date`는 DRAFT에서 선택, SUBMIT에서 필수. 공급업체 전화 필수, 이메일 선택·형식 검증.
 - `user_roles(user_id,role_code)` 복수 역할 허용. 역할 겸직/ADMIN이라도 자기 PR 승인·반려 금지. 타인 DRAFT 수정/제출 금지.
-- PR 품목 `(pr_id,material_id)` UNIQUE **A 제안**. PO 품목 `(po_id,pr_item_id)` UNIQUE; `pr_item_id` 전역 UNIQUE 금지(분할 발주 보장).
-- **GR은 하나의 PO와 하나의 창고를 참조하되, `goods_receipt_items.storage_location_id`는 품목별로 다르게 지정 가능.** 모든 저장위치는 GR 헤더 창고 소속이고 활성 상태여야 함. 같은 PO 품목을 한 GR 내 중복 행으로 기록하지 않음.
+- PR 품목 `(pr_id,material_id)` UNIQUE **금지** (동일 품목 다른 행 허용). PO 품목 `(po_id,pr_item_id)` UNIQUE; `pr_item_id` 전역 UNIQUE 금지(분할 발주 보장).
+- **GR은 하나의 PO와 하나의 창고를 참조하고, 동일 PO 품목도 여러 활성 저장위치에 분할 배분할 수 있다.** 모든 위치는 GR 헤더 창고 소속. POSTED 전 POItem별 배분 합계가 최신 잔량 이내여야 하며 PO 누적은 합산, 원장/현재고는 배분별로 처리. DRAFT 중에는 재고 영향 없음.
 - 원장/현재고/PO 누적입고/GR 문서 생성은 하나의 PostgreSQL 트랜잭션으로 확정.
 - 위 항목은 A 채택안이며 B 검토 전 최종 팀 합의가 아니다. DB 마이그레이션/실행은 미완료.
+
+## 9. B 피드백 수용 시 추가 DB 불변식 (v0.3)
+
+- DRAFT의 `po_id`, `created_by`는 필수이며 `warehouse_id`, GRItem의 `po_item_id`·`storage_location_id`·`received_qty`·`unit`, `posted_by`, `posted_at`은 NULL 가능. POSTED 전환 시 모두 검증하며 최소 1개의 완전한 유효 GRItem이 있어야 한다. 상태 조건부 제약은 SQL CHECK와 서비스 검증 조합으로 이행한다.
+- `gr_number`는 초안 생성 때 발번해도 되지만 확정 여부와 분리하고, 취소/삭제 후 번호 재사용은 금지한다.
+- DRAFT 업데이트의 낙관적 버전 검증은 `goods_receipts.version`을 사용. POSTED 확정 시 기존 버전과 상태가 일치해야 한다. 임시저장과 확정에 서로 다른 요청키를 사용하며 **확정 키는 성공 결과와 같은 트랜잭션에서 저장**한다.
+- 서로 다른 창고 소속 위치 및 `active=false`인 창고/위치는 확정 불가. DRAFT는 오래된 값 보존 가능하나 확정 시 최신 활성 상태로 재검증.
+- 재고 또는 참조 거래 이력이 있는 창고/위치는 삭제 금지. `active=false`여도 과거 원장 조회는 가능. **현재고>0 비활성화 금지는 B 최종 리뷰 항목**이며 현재 가이드에서 차단 권고.
+- 동일 POItem을 위치 A/B로 배분한 GRItem 두 행은 별개 ID를 가지며 각 1개씩 StockMovement를 생성. A 내부 서비스에는 `po_item_id`별 집계 결과만 전달한다. `stock_movements.gr_item_id` UNIQUE는 유지한다.
+- `requisition_items`의 행별 납기·용도 필드 추가는 공동 미확정이며 공장 마스터를 임의로 신설하지 않는다.

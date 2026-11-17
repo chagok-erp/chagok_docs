@@ -1,6 +1,6 @@
 # 차곡ERP 권한(RBAC) 및 인증·인가 규칙 매트릭스
 
-> v0.2 / 2026-11-17 · **A 채택안, B 검토 전**. 기존 `SCREEN-SPEC.md`의 Mock 역할을 기반으로, 서버 권한을 구체화한 초안.  
+> v0.3 / 2026-11-18 · **A 채택안, B 검토 전**. 기존 `SCREEN-SPEC.md`의 Mock 역할을 기반으로, 서버 권한을 구체화한 초안.  
 > 각 요청마다 Spring Security의 인증 사용자 및 도메인 소유권·상태를 서버에서 다시 검증한다. 클라이언트 역할·사용자 ID·AI 생성 텍스트를 권한 근거로 삼지 않는다.
 
 ## 1. 역할과 범례
@@ -27,7 +27,7 @@
 | PR 승인/반려 | – | U(비자기) | – | – | U(비자기) |
 | PO 목록/상세/인쇄 | – | R | R | R | R |
 | PO 분할 발주 생성 | – | – | C | – | C |
-| GR 확정·이력 | – | – | – | C/R | C/R |
+| GR DRAFT 생성·본인 수정·확정·이력 | – | – | – | C/U(OWN)/R | C/U(OWN)/R |
 | 현재고·수불원장 | R | – | R | R | R |
 | Assistant 채팅·RAG·PR 초안 | OWN | – | OWN | – | OWN |
 | 문서 업로드·검토·초안 저장 | OWN | – | OWN | – | OWN |
@@ -41,7 +41,7 @@
 1. **자기 승인:** `pr.requester_id == principal.userId`라면 APPROVER/ADMIN과 무관하게 승인·반려 금지(제안). `ADMIN` 긴급 예외를 추가하려면 별도 감사·승인 정책이 필요하므로 P0 미지원.
 2. **타인 PR:** 자신의 DRAFT를 수정·제출할 수 있고, ADMIN의 타인 DRAFT 대리 수정은 P0에서 지원하지 않음. AI/Document 입력 경로는 동일 권한 적용.
 3. **PO:** `PURCHASER`·`ADMIN`만 승인된 PR에서 발주 생성. 미발주 잔량 재검증, 공급업체 활성 검사, 요청키 멱등성 검증.
-4. **GR:** `WAREHOUSE`·`ADMIN`만 확정. 한 GR에 한 PO, 허용 위치, PO 미입고 잔량, 중복·동시 요청 재검증.
+4. **GR:** `WAREHOUSE`·`ADMIN`만 DRAFT 생성·자신의 DRAFT 수정/확정 가능. POSTED는 조회만 가능. GR 하나는 PO·창고 각 하나를 참조하며 같은 POItem을 여러 저장위치에 분할 가능. 확정은 위치별 배분 SUM, 최신 PO 잔량, 버전·멱등/동시 요청 재검증. DRAFT 저장은 PO/재고 영향 없음.
 5. **AI:** Agent에는 ERP 조회·RAG·PR DRAFT 생성/수정 Tool만 제공; PO/GR/승인/결제 Tool 제공 금지. 문서/모델 지시를 권한으로 승격하지 않음.
 6. **세션:** Spring Security 서버 세션 + Secure·HttpOnly·적절한 SameSite 쿠키, CSRF 토큰 방식은 프론트와 함께 확정. 로그아웃과 세션 만료 시 401 상태 UX.
 7. **외부 Rust PoC:** 브라우저가 Rust에 `userId`를 직접 전달해 권한을 결정하게 하지 않음. Spring ERP 인증 경유·내부 서비스 인증을 적용하고 사용자 권한은 Java 업무 서비스에서 재검증.
@@ -68,6 +68,8 @@
 - `RBAC-06`: 쿠키 없는 인증 필요 API 호출 → 401
 - `RBAC-07`: CSRF 보호 대상 세션 변경 요청에서 토큰 누락 → 403
 - `RBAC-08`: ADMIN 본인 PR 승인 → 거부(제안)
+- `RBAC-09`: WAREHOUSE/ADMIN이 타인 GR DRAFT를 수정·확정하려고 하면 403/404, 변동 없음
+- `RBAC-10`: 본인 GR DRAFT를 POSTED 확정한 후 PATCH 재시도 → 409, 재고 변동 없음
 
 ## 6. 두 사람이 결정할 것
 
@@ -85,3 +87,11 @@
 - 본인 DRAFT는 본인만 조회·수정. APPROVER는 심사 대상 SUBMITTED, PURCHASER는 승인·발주 대상 문서를 조회.
 - Spring Security 세션 인증 + CSRF, HttpOnly/Secure 쿠키. 세션 만료는 401, CSRF 거부는 403. Rust PoC 도입 시 브라우저는 Spring Boot 경유.
 - B의 교차 리뷰 전이므로 실제 보안 정책이 배포되었다는 의미가 아니다.
+
+## v0.3 추가: GR DRAFT 권한 및 창고 비활성화
+
+- B는 `WAREHOUSE/ADMIN` 모두 GR DRAFT를 만들 수 있게 하되 **DRAFT는 createdBy=principal.id 사용자 본인만 수정/확정**하도록 검사한다. 관리자 대리수정/대리확정은 별도 합의 없이는 허용하지 않는다.
+- `GET /goods-receipts`의 DRAFT는 본인 것만 조회한다. POSTED는 권한 범위 내 조회하며 민감한 이력 접근은 서버에서 판단한다.
+- `PATCH /warehouses/{id}` 및 `PATCH /storage-locations/{id}`의 활성화 변경은 WAREHOUSE/ADMIN에 한정한다. 거래 이력/재고 참조 리소스의 물리 삭제는 지원하지 않는다.
+- 비활성 창고·위치는 과거 기록에서 계속 보여도 신규 GR POSTED 대상이 될 수 없다. DRAFT에는 옛 위치가 남을 수 있지만 확정 시 최신 활성 상태로 검증한다.
+- B 최종 검토: 현재고>0 비활성화를 차단할지, GR DRAFT 사용자별 만료/보관 정책. 서버 권한 테스트로 결정과 일치하는지 확인한다.

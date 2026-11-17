@@ -1,14 +1,22 @@
 openapi: 3.1.0
 info:
   title: Chagok ERP API
-  version: 0.1.0-draft
-  description: '차곡ERP 2주차 계약 초안 (미배포). A/B 검토 전. /api/v1 및 필드명은 제안. HTTP 상태는 확정 전이며 로그인 방식은 Spring Security 세션 쿠키+CSRF 권장.
+  version: 0.2.0-design-draft
+  description: '차곡ERP A의 B 피드백 수용 설계안 (2026-11-18). 실제 Spring Boot 구현/팀 최종 승인 전.
 
+    PR 헤더 일괄 승인, 1 PR→N PO, 동일 PR 품목 중복 행 허용(각 prItemId 고유), 한 PO→여러 GR.
 
-    업무 원칙: PR 헤더 일괄 승인, 1 PR → N PO, PO당 1 공급업체, GR 1회당 1 PO, 전체 트랜잭션. 실제 발주 전송/결제/승인 실행 AI Tool 없음.
+    GR은 DRAFT 저장/수정 이후 명시적 POSTED 확정. DRAFT는 PO 누적·원장·현재고 영향 0.
 
+    한 GR은 한 PO·한 창고, 같은 POItem은 서로 다른 활성 저장위치로 반복 배분 가능.
 
-    JSON Decimal/금액은 문자열 표준 제안. 변경 시 Java/React 공동 계약에서 일괄 조정.'
+    확정은 최신 POItem별 합산 잔량 검증, 요청키 멱등성, 버전 확인, 단일 DB 트랜잭션.
+
+    POST /goods-receipts는 이전 즉시 확정 계약에서 DRAFT 생성으로 변경되므로 프런트/백 동시 반영 필요.
+
+    JSON 수량·금액은 BigDecimal 대응 문자열. 인증은 Spring Security 세션/CSRF.
+
+    '
 servers:
 - url: /api/v1
   description: 제안 prefix, 팀 합의 전
@@ -667,10 +675,8 @@ paths:
         required: true
         schema:
           $ref: '#/components/schemas/Id'
-      description: '허용 역할(제안): WAREHOUSE, ADMIN
-
-
-        실제 인가·상태·소유권은 서버에서 검증.'
+      description: WAREHOUSE/ADMIN. active=false 비활성화는 과거 거래 참조를 보존하며 신규 GR 확정 대상에서 제외. 이력·재고 참조가 있는 리소스 물리 삭제 금지.
+        현재고>0 비활성화 가능 여부는 B 최종 검토.
       requestBody:
         required: true
         content:
@@ -833,10 +839,8 @@ paths:
         required: true
         schema:
           $ref: '#/components/schemas/Id'
-      description: '허용 역할(제안): WAREHOUSE, ADMIN
-
-
-        실제 인가·상태·소유권은 서버에서 검증.'
+      description: WAREHOUSE/ADMIN. active=false 비활성화는 과거 거래 참조를 보존하며 신규 GR 확정 대상에서 제외. 이력·재고 참조가 있는 리소스 물리 삭제 금지.
+        현재고>0 비활성화 가능 여부는 B 최종 검토.
       requestBody:
         required: true
         content:
@@ -1450,7 +1454,7 @@ paths:
     get:
       tags:
       - GR
-      summary: GR 이력 목록
+      summary: GR DRAFT/POSTED 목록 조회 (초안 소유권 적용)
       responses:
         '200':
           description: 성공
@@ -1490,18 +1494,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
-      description: '허용 역할(제안): WAREHOUSE/ADMIN
-
-
-        실제 인가·상태·소유권은 서버에서 검증.'
+        '400':
+          description: 잘못된 요청 형식
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      description: WAREHOUSE/ADMIN. DRAFT는 작성자 본인만 조회 가능, POSTED는 권한 범위 내 조회.
       operationId: get_goods_receipts
+      parameters:
+      - name: status
+        in: query
+        required: false
+        description: 입고 상태 필터
+        schema:
+          type: string
+          enum:
+          - DRAFT
+          - POSTED
     post:
       tags:
       - GR
-      summary: 1 PO 기준 입고 확정(원자적 트랜잭션)
+      summary: GR DRAFT 임시저장 생성 (재고/PO 수량 무변경)
       responses:
         '201':
-          description: 성공
+          description: DRAFT 저장 완료. PO 수량·재고 변화 없음
           content:
             application/json:
               schema:
@@ -1536,22 +1553,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+        '400':
+          description: 잘못된 요청 형식
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GRCreate'
-      description: '허용 역할(제안): WAREHOUSE/ADMIN
-
-
-        실제 인가·상태·소유권은 서버에서 검증.'
+              $ref: '#/components/schemas/GRDraftCreate'
+      description: WAREHOUSE/ADMIN. POSTED 즉시 확정 API가 아니라 DRAFT 생성. 기존 즉시 확정 POST 계약과 호환되지 않음. 생성 요청키는 DRAFT 생성 멱등용이며
+        POST 확정 키와 구별.
       operationId: post_goods_receipts
+      x-breaking-change: 이전에는 POST /goods-receipts가 즉시 POSTED를 생성했으나 이 버전부터 DRAFT 생성.
   /goods-receipts/{id}:
     get:
       tags:
       - GR
-      summary: GR 상세
+      summary: GR DRAFT/POSTED 상세 조회
       responses:
         '200':
           description: 성공
@@ -1589,17 +1611,81 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+        '400':
+          description: 잘못된 요청 형식
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
       parameters:
       - name: id
         in: path
         required: true
         schema:
           $ref: '#/components/schemas/Id'
-      description: '허용 역할(제안): WAREHOUSE/ADMIN
-
-
-        실제 인가·상태·소유권은 서버에서 검증.'
+      description: WAREHOUSE/ADMIN. DRAFT는 작성자 본인에게만 노출; POSTED는 권한 범위 내 조회.
       operationId: get_goods_receipts_by_id
+    patch:
+      tags:
+      - GR
+      summary: GR DRAFT 수정 (전체 배분행 교체 가능)
+      description: WAREHOUSE/ADMIN 중 작성자 본인. POSTED는 수정 불가. expectedVersion 낙관적 락; DRAFT는 PO 수량·재고 변경 없음.
+      operationId: patch_goods_receipts_by_id
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GRDraftPatch'
+      responses:
+        '200':
+          description: DRAFT 수정 완료, 버전 갱신
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoodsReceipt'
+        '401': &id001
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403': &id002
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404': &id003
+          description: 대상 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409': &id004
+          description: 업무 상태·버전·잔량·멱등 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422': &id005
+          description: 필드 또는 업무 입력 검증 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '400':
+          description: 잘못된 요청 형식
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /stock-balances:
     get:
       tags:
@@ -1980,6 +2066,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
       operationId: post_documents_analyze
+  /goods-receipts/{id}/post:
+    post:
+      tags:
+      - GR
+      summary: GR DRAFT → POSTED 확정 (PO·GR·원장·현재고 단일 트랜잭션)
+      description: WAREHOUSE/ADMIN 중 작성자 본인. 현재 DRAFT·expectedVersion 검증. POItem별 위치 배분 수량 SUM ≤ 최신 PO 잔량. 각 위치별 원장/현재고를
+        같은 PostgreSQL 트랜잭션에서 갱신. 동일 확정 요청키 재시도는 기존 결과 반환; 실패하면 DRAFT 유지. B GR 서비스 → A PO 내부 Java 서비스.
+      operationId: post_goods_receipts_by_id_post
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GRPostRequest'
+      responses:
+        '200':
+          description: POSTED 확정 완료 (또는 동일 요청키 성공 재조회)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoodsReceipt'
+        '401': *id001
+        '403': *id002
+        '404': *id003
+        '409': *id004
+        '422': *id005
+        '400':
+          description: 잘못된 요청 형식
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 components:
   securitySchemes:
     sessionCookie:
@@ -2133,6 +2257,7 @@ components:
           format: email
         contactName:
           type: string
+      description: 전화번호만 필수 연락처로 보관. 이메일 선택, 입력 시 형식 검사. 외부 발신 API 없음.
     Warehouse:
       type: object
       required:
@@ -2149,6 +2274,7 @@ components:
           type: string
         active:
           type: boolean
+      description: active=false 창고의 과거 이력 조회 가능, 신규 GR 확정 창고로 사용 금지. 물리 삭제 대신 비활성화.
     WarehouseCreate:
       type: object
       required:
@@ -2178,6 +2304,7 @@ components:
           type: string
         active:
           type: boolean
+      description: 과거 이력 참조 유지, active=false 위치로 신규 GR 확정 불가. 현재고>0 비활성화 정책은 B 검토 전.
     StorageLocationCreate:
       type: object
       required:
@@ -2205,6 +2332,7 @@ components:
         unit:
           type: string
           description: Material 기준단위와 일치해야 함
+      description: 동일 PR에서 같은 materialId를 여러 번 입력할 수 있다. 서버는 행별 고유 prItemId/displayOrder를 생성한다. PRItem별 발주 잔량 집계.
     PRItem:
       type: object
       required:
@@ -2227,6 +2355,7 @@ components:
           type: integer
         remainingToOrder:
           $ref: '#/components/schemas/DecimalQuantity'
+      description: 동일 materialId를 가진 PRItem도 별개 itemId, displayOrder 및 remainingToOrder를 유지. 행 자동 병합 금지.
     PRCreate:
       type: object
       required:
@@ -2258,6 +2387,7 @@ components:
           minItems: 1
           items:
             $ref: '#/components/schemas/PRItemInput'
+      description: UI/Agent/Document AI 공통 PR DRAFT 생성. 동일 materialId 반복 행 허용, 항목 ID는 저장 결과로 제공.
     PRDraft:
       type: object
       required:
@@ -2437,41 +2567,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/POItem'
-    GRItemInput:
-      type: object
-      required:
-      - purchaseOrderItemId
-      - receivedQty
-      - storageLocationId
-      properties:
-        purchaseOrderItemId:
-          $ref: '#/components/schemas/Id'
-        receivedQty:
-          $ref: '#/components/schemas/DecimalQuantity'
-        storageLocationId:
-          $ref: '#/components/schemas/Id'
-    GRCreate:
-      type: object
-      required:
-      - requestKey
-      - purchaseOrderId
-      - warehouseId
-      - items
-      properties:
-        requestKey:
-          type: string
-          minLength: 8
-        purchaseOrderId:
-          $ref: '#/components/schemas/Id'
-        warehouseId:
-          $ref: '#/components/schemas/Id'
-        note:
-          type: string
-        items:
-          type: array
-          minItems: 1
-          items:
-            $ref: '#/components/schemas/GRItemInput'
     GoodsReceipt:
       type: object
       required:
@@ -2479,7 +2574,10 @@ components:
       - grNumber
       - purchaseOrderId
       - status
+      - version
+      - createdBy
       - items
+      description: DRAFT는 입고 효과가 없고 postedAt/postedBy는 미설정. POSTED는 수정·삭제 불가, 위치별 GRItem 1행당 원장 1건.
       properties:
         id:
           $ref: '#/components/schemas/Id'
@@ -2487,13 +2585,25 @@ components:
           type: string
         purchaseOrderId:
           $ref: '#/components/schemas/Id'
+        warehouseId:
+          $ref: '#/components/schemas/Id'
         status:
           type: string
           enum:
+          - DRAFT
           - POSTED
+        version:
+          type: integer
+          minimum: 1
+        createdBy:
+          $ref: '#/components/schemas/Id'
+        postedBy:
+          $ref: '#/components/schemas/Id'
         postedAt:
           type: string
           format: date-time
+        note:
+          type: string
         poStatus:
           type: string
           enum:
@@ -2503,15 +2613,7 @@ components:
         items:
           type: array
           items:
-            type: object
-            required:
-            - purchaseOrderItemId
-            - receivedQty
-            properties:
-              purchaseOrderItemId:
-                $ref: '#/components/schemas/Id'
-              receivedQty:
-                $ref: '#/components/schemas/DecimalQuantity'
+            $ref: '#/components/schemas/GRItem'
     StockBalance:
       type: object
       required:
@@ -2680,3 +2782,102 @@ components:
                 type: string
               reason:
                 type: string
+    GRDraftItemInput:
+      type: object
+      description: 부분 입력 허용. DRAFT에는 빈 행/미지정 POItem·위치·수량 가능; POSTED 확정에서는 모든 필드가 존재해야 한다. 동일 POItem을 서로 다른 저장위치로
+        반복할 수 있다.
+      properties:
+        purchaseOrderItemId:
+          $ref: '#/components/schemas/Id'
+        receivedQty:
+          $ref: '#/components/schemas/DecimalQuantity'
+        storageLocationId:
+          $ref: '#/components/schemas/Id'
+        unit:
+          type: string
+          description: 품목 기준단위; 확정 시 검증
+        displayOrder:
+          type: integer
+          minimum: 1
+          description: 폼 행 순서; 없으면 서버가 순차 부여
+    GRDraftCreate:
+      type: object
+      required:
+      - requestKey
+      - purchaseOrderId
+      description: GR 임시저장 생성. PO 지정 및 서버 인증 작성자는 필수. warehouseId/배분행은 아직 미완성이어도 된다. 저장 시 PO·원장·현재고를 변경하지 않는다.
+      properties:
+        requestKey:
+          type: string
+          minLength: 8
+          maxLength: 100
+        purchaseOrderId:
+          $ref: '#/components/schemas/Id'
+        warehouseId:
+          $ref: '#/components/schemas/Id'
+        note:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GRDraftItemInput'
+          default: []
+    GRDraftPatch:
+      type: object
+      required:
+      - requestKey
+      - expectedVersion
+      description: DRAFT 전용 수정. 명시한 items는 전체 배분행 목록을 교체한다(누락 시 유지, []면 비움). PO 참조는 DRAFT 생성 후 변경 불가. 같은 expectedVersion
+        경합이면 409.
+      properties:
+        requestKey:
+          type: string
+          minLength: 8
+          maxLength: 100
+        expectedVersion:
+          type: integer
+          minimum: 1
+        warehouseId:
+          $ref: '#/components/schemas/Id'
+        note:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GRDraftItemInput'
+    GRPostRequest:
+      type: object
+      required:
+      - requestKey
+      - expectedVersion
+      description: DRAFT→POSTED 확정. 요청 fingerprint는 draftId + expectedVersion + 서버에 저장된 초안 스냅샷의 정규화 결과 기준. 동일 키/동일
+        스냅샷 재시도 시 기존 확정 결과 반환, 키 재사용·다른 본문은 409. 이전 버전은 409.
+      properties:
+        requestKey:
+          type: string
+          minLength: 8
+          maxLength: 100
+        expectedVersion:
+          type: integer
+          minimum: 1
+    GRItem:
+      type: object
+      required:
+      - id
+      - displayOrder
+      description: DRAFT의 미완성 항목은 선택 필드가 누락될 수 있음. POSTED는 purchaseOrderItemId/receivedQty/storageLocationId/unit
+        모두 존재.
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        displayOrder:
+          type: integer
+          minimum: 1
+        purchaseOrderItemId:
+          $ref: '#/components/schemas/Id'
+        receivedQty:
+          $ref: '#/components/schemas/DecimalQuantity'
+        storageLocationId:
+          $ref: '#/components/schemas/Id'
+        unit:
+          type: string

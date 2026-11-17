@@ -1,3 +1,4 @@
+%% v0.3: GR DRAFT/POSTED; GRItem same POItem multiple active locations; PRItem material repetition allowed; POSTED GRItem only creates StockMovement.
 erDiagram
     APP_USERS ||--o{ PURCHASE_REQUISITIONS : creates
     PURCHASE_REQUISITIONS ||--|{ REQUISITION_ITEMS : has
@@ -8,10 +9,11 @@ erDiagram
     PURCHASE_ORDERS ||--|{ PURCHASE_ORDER_ITEMS : contains
     REQUISITION_ITEMS ||--o{ PURCHASE_ORDER_ITEMS : allocated_as
     PURCHASE_ORDERS ||--o{ GOODS_RECEIPTS : received_in
-    GOODS_RECEIPTS ||--|{ GOODS_RECEIPT_ITEMS : contains
-    PURCHASE_ORDER_ITEMS ||--o{ GOODS_RECEIPT_ITEMS : received_as
+    GOODS_RECEIPTS ||--o{ GOODS_RECEIPT_ITEMS : contains_if_any
+    PURCHASE_ORDER_ITEMS |o--o{ GOODS_RECEIPT_ITEMS : linked_when_valid
     WAREHOUSES ||--o{ STORAGE_LOCATIONS : contains
-    STORAGE_LOCATIONS ||--o{ GOODS_RECEIPT_ITEMS : destination
+    WAREHOUSES |o--o{ GOODS_RECEIPTS : chosen_warehouse
+    STORAGE_LOCATIONS |o--o{ GOODS_RECEIPT_ITEMS : destination_when_set
     GOODS_RECEIPT_ITEMS o|--o| STOCK_MOVEMENTS : GR_IN_only
     MATERIALS ||--o{ STOCK_MOVEMENTS : records
     MATERIALS ||--o{ STOCK_BALANCES : has
